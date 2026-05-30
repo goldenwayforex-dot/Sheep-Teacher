@@ -1,8 +1,6 @@
 import streamlit as st
 import sqlite3
 
-st.set_page_config(page_title="Holy English Academy", layout="wide")
-
 # --- BANCO DE DADOS ---
 def conectar(): return sqlite3.connect('banco_ingles.db')
 
@@ -15,56 +13,50 @@ def iniciar_banco():
 
 iniciar_banco()
 
-# --- ESTADO DE SESSÃO ---
+# --- ESTADO ---
 if "tela" not in st.session_state: st.session_state.tela = "login"
 
-# --- SIDEBAR PROFESSOR (ACESSO TOTAL) ---
+# --- SIDEBAR PROFESSOR ---
 with st.sidebar:
     st.title("👨‍🏫 Professor")
     if st.text_input("Senha Admin:", type="password") == "igreja123":
         if st.button("Painel de Gestão"): st.session_state.tela = "admin"
-    if st.button("Voltar ao Início"): st.session_state.tela = "inicio"
+    if st.button("Voltar ao Início"): st.session_state.tela = "inicio"; st.rerun()
 
 # --- TELAS ---
 if st.session_state.tela == "login":
     st.title("🎓 Holy English Academy")
     nome = st.text_input("Seu nome:")
     if st.button("Entrar"):
-        st.session_state.aluno = nome
         con = conectar(); cur = con.cursor()
         cur.execute("SELECT id FROM alunos WHERE nome = ?", (nome,))
         res = cur.fetchone()
         if not res: cur.execute("INSERT INTO alunos (nome) VALUES (?)", (nome,))
         st.session_state.uid = cur.execute("SELECT id FROM alunos WHERE nome = ?", (nome,)).fetchone()[0]
+        st.session_state.aluno = nome
         con.commit(); con.close()
         st.session_state.tela = "inicio"; st.rerun()
 
 elif st.session_state.tela == "admin":
-    st.title("⚙️ Painel de Gestão")
-    t1, t2, t3 = st.tabs(["📁 Módulos", "📝 Gerenciar Aulas", "👥 Alunos"])
+    st.title("⚙️ Gestão de Conteúdo")
+    t1, t2, t3 = st.tabs(["📁 Módulos", "📝 Criar/Excluir Aulas", "👥 Alunos"])
     
     with t1:
-        tit_mod = st.text_input("Nome do Novo Módulo")
-        if st.button("Salvar Módulo"): conectar().execute("INSERT INTO modulos (titulo) VALUES (?)", (tit_mod,)).connection.commit(); st.rerun()
-        st.write("### Módulos Existentes:")
-        for mod in conectar().execute("SELECT id, titulo FROM modulos").fetchall():
-            if st.button(f"🗑️ Excluir Módulo: {mod[1]}", key=f"del_m{mod[0]}"):
-                conectar().execute("DELETE FROM modulos WHERE id = ?", (mod[0],)).connection.commit(); st.rerun()
-
+        tit = st.text_input("Nome do Módulo")
+        if st.button("Salvar Módulo"): conectar().execute("INSERT INTO modulos (titulo) VALUES (?)", (tit,)).connection.commit(); st.rerun()
     with t2:
         mods = conectar().execute("SELECT id, titulo FROM modulos").fetchall()
         if mods:
-            m_id = st.selectbox("Selecione o Módulo", options=[m[0] for m in mods], format_func=lambda x: [m[1] for m in mods if m[0] == x][0])
+            mid = st.selectbox("Escolha o Módulo:", options=[m[0] for m in mods], format_func=lambda x: [m[1] for m in mods if m[0] == x][0])
             with st.expander("Nova Aula"):
                 tit = st.text_input("Título"); per = st.text_input("Pergunta"); o1 = st.text_input("Opção 1"); o2 = st.text_input("Opção 2"); o3 = st.text_input("Opção 3")
                 resp = st.selectbox("Correta", [o1, o2, o3])
-                if st.button("Salvar Aula"): conectar().execute("INSERT INTO licoes (modulo_id, titulo_botao, pergunta, opcao_1, opcao_2, opcao_3, resposta_correta) VALUES (?,?,?,?,?,?,?)", (m_id, tit, per, o1, o2, o3, resp)).connection.commit(); st.rerun()
+                if st.button("Salvar Aula"): conectar().execute("INSERT INTO licoes (modulo_id, titulo_botao, pergunta, opcao_1, opcao_2, opcao_3, resposta_correta) VALUES (?,?,?,?,?,?,?)", (mid, tit, per, o1, o2, o3, resp)).connection.commit(); st.rerun()
             st.write("### Aulas:")
-            for l in conectar().execute("SELECT id, titulo_botao FROM licoes WHERE modulo_id = ?", (m_id,)).fetchall():
+            for l in conectar().execute("SELECT id, titulo_botao FROM licoes WHERE modulo_id = ?", (mid,)).fetchall():
                 c1, c2 = st.columns([4, 1])
                 c1.write(l[1])
-                if c2.button("❌ Excluir", key=f"d{l[0]}"): conectar().execute("DELETE FROM licoes WHERE id = ?", (l[0],)).connection.commit(); st.rerun()
-
+                if c2.button("❌", key=f"d{l[0]}"): conectar().execute("DELETE FROM licoes WHERE id = ?", (l[0],)).connection.commit(); st.rerun()
     with t3:
         st.table(conectar().execute("SELECT nome, xp_total FROM alunos ORDER BY xp_total DESC").fetchall())
 
@@ -78,18 +70,23 @@ elif st.session_state.tela == "inicio":
                     if st.button(l[1], key=f"a{l[0]}"): st.session_state.l_atual = l[0]; st.session_state.tela = "licao"; st.rerun()
     with c2:
         st.write("### 🏆 Top 5")
-        for i, row in enumerate(conectar().execute("SELECT nome, xp_total FROM alunos ORDER BY xp_total DESC LIMIT 5").fetchall()):
-            st.markdown(f"**{i+1}. {row[0]}** - {row[1]} XP")
+        for i, r in enumerate(conectar().execute("SELECT nome, xp_total FROM alunos ORDER BY xp_total DESC LIMIT 5").fetchall()):
+            st.write(f"{i+1}. {r[0]} ({r[1]} XP)")
 
 elif st.session_state.tela == "licao":
-    l = conectar().execute("SELECT pergunta, opcao_1, opcao_2, opcao_3, resposta_correta FROM licoes WHERE id = ?", (st.session_state.l_atual,)).fetchone()
-    st.write(f"### {l[0]}")
-    res = st.radio("Escolha:", [l[1], l[2], l[3]], index=None)
+    d = conectar().execute("SELECT pergunta, opcao_1, opcao_2, opcao_3, resposta_correta FROM licoes WHERE id = ?", (st.session_state.l_atual,)).fetchone()
+    st.write(f"### {d[0]}")
+    res = st.radio("Escolha:", [d[1], d[2], d[3]], index=None)
+    
+    if "verificado" not in st.session_state: st.session_state.verificado = False
     
     if st.button("Verificar"):
-        if res == l[4]:
+        if res == d[4]:
             conectar().execute("UPDATE alunos SET xp_total = xp_total + 20 WHERE id = ?", (st.session_state.uid,)).connection.commit()
-            st.success("✅ Resposta Correta! Você ganhou 20 XP.")
-        else: st.error("❌ Resposta incorreta. Tente novamente!")
-        
-        if st.button("Continuar / Voltar"): st.session_state.tela = "inicio"; st.rerun()
+            st.success("✅ Correto! Você ganhou 20 XP.")
+            st.session_state.verificado = True
+        else: st.error("❌ Errado! Tente de novo.")
+    
+    if st.session_state.get("verificado"):
+        if st.button("Continuar"): st.session_state.verificado = False; st.session_state.tela = "inicio"; st.rerun()
+    if st.button("Voltar ao Menu"): st.session_state.verificado = False; st.session_state.tela = "inicio"; st.rerun()
