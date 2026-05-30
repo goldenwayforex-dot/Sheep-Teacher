@@ -2,7 +2,7 @@ import streamlit as st
 import sqlite3
 
 # --- CONFIGURAÇÃO DA INTERFACE VISUAL PREMIUM (LAYOUT AMPLO) ---
-st.set_page_config(page_title="Holy English Academy", layout="wide", initial_sidebar_state="collapsed")
+st.set_page_config(page_title="Sheep Teacher - Bethany Church", layout="wide", initial_sidebar_state="collapsed")
 
 # Estilização sob medida (Dark Mode Avançado + Elementos Neon)
 st.markdown("""
@@ -126,8 +126,8 @@ if st.session_state.tela == "login":
     with c2:
         st.markdown("""
             <div class='premium-card' style='text-align: center;'>
-                <h1 class='titulo-principal'>Holy English</h1>
-                <p style='color: #8E8E93; margin-bottom: 30px;'>A sua trilha de gamificação rumo ao novo idioma.</p>
+                <h1 class='titulo-principal'>Sheep Teacher - Bethany Church</h1>
+                <p style='color: #8E8E93; margin-bottom: 30px;'>A salvação do seu inglês chegou!</p>
             </div>
         """, unsafe_allow_html=True)
         
