@@ -24,6 +24,8 @@ PROFESSOR_NOME = "professor"           # nome reservado para o painel admin
 PROFESSOR_PIN  = "1234"                # MUDE este PIN antes de usar de verdade
 XP_POR_ACERTO  = 10
 XP_REVISAO     = 5
+# --- Bônus de velocidade (modo cronômetro) ---
+SPEED_BONUS = [(3, 5), (6, 3), (10, 1)]  # (segundos máximo, bônus XP)
 # --- Duelo ---
 DUELO_QUESTOES   = 10   # quantas questões por duelo
 DUELO_XP_VITORIA = 30
@@ -140,6 +142,13 @@ MODULO_ICONES = {
     "Módulo 25": "🔜", "Módulo 26": "💪", "Módulo 27": "⏪", "Módulo 28": "⏮️",
     "Módulo 29": "🐾", "Módulo 30": "👕", "Módulo 31": "🏠", "Módulo 32": "💼",
     "Módulo 33": "🏙️", "Módulo 34": "💗", "Módulo 35": "🕊️", "Módulo 36": "📜",
+    "Módulo 37": "🔊", "Módulo 38": "🔊",
+}
+
+# Módulos de listening puro - força tipo "listen" em TODAS as questões
+MODULOS_AUDIO_PURO = {
+    "Módulo 37: 🔊 Listening - Palavras do Dia a Dia",
+    "Módulo 38: 🔊 Listening - Frases Bíblicas",
 }
 
 def icone_modulo(titulo):
@@ -197,7 +206,54 @@ def render_avatar(nome, tamanho=38):
     return (f"<span class='avatar' style='width:{tamanho}px;height:{tamanho}px;"
             f"background:{cor};font-size:{fonte}px;'>{ini}</span>")
 
-# --- HELPERS DE BANCO ---
+# --- TYPING: NORMALIZAÇÃO DE RESPOSTAS ---
+CONTRACOES_EN = {
+    "i'm": "i am", "you're": "you are", "he's": "he is", "she's": "she is",
+    "it's": "it is", "we're": "we are", "they're": "they are",
+    "i'll": "i will", "you'll": "you will", "he'll": "he will", "she'll": "she will",
+    "it'll": "it will", "we'll": "we will", "they'll": "they will",
+    "i've": "i have", "you've": "you have", "we've": "we have", "they've": "they have",
+    "i'd": "i would", "you'd": "you would", "he'd": "he would", "she'd": "she would",
+    "we'd": "we would", "they'd": "they would",
+    "don't": "do not", "doesn't": "does not", "didn't": "did not",
+    "isn't": "is not", "aren't": "are not", "wasn't": "was not", "weren't": "were not",
+    "haven't": "have not", "hasn't": "has not", "hadn't": "had not",
+    "won't": "will not", "wouldn't": "would not",
+    "couldn't": "could not", "shouldn't": "should not", "mustn't": "must not",
+    "can't": "can not", "cannot": "can not",
+    "let's": "let us", "that's": "that is", "there's": "there is",
+    "what's": "what is", "where's": "where is", "who's": "who is", "how's": "how is",
+}
+
+def normalizar_resp(s):
+    """Lowercase, tira espaços/pontuação, expande contrações."""
+    s = (s or "").strip().lower().rstrip(".!?,;:")
+    # Expande contrações - precisa fazer com word boundaries pra não confundir
+    for contr, expan in CONTRACOES_EN.items():
+        s = s.replace(contr, expan)
+    # Normaliza múltiplos espaços
+    s = " ".join(s.split())
+    return s
+
+def acerto_typing(resp, correta):
+    """Compara resposta digitada com a correta, aceitando contrações e alternativas com /."""
+    r = normalizar_resp(resp)
+    # Se a resposta correta tem "X / Y", aceita qualquer um dos lados
+    if "/" in correta:
+        partes = [normalizar_resp(p) for p in correta.split("/")]
+        return r in partes
+    return r == normalizar_resp(correta)
+
+def calcular_bonus_velocidade(segundos):
+    """Retorna XP bônus baseado no tempo da resposta."""
+    if segundos is None or segundos < 0:
+        return 0
+    for limite, bonus in SPEED_BONUS:
+        if segundos < limite:
+            return bonus
+    return 0
+
+
 def conectar():
     return sqlite3.connect(DB_PATH)
 
@@ -1216,6 +1272,32 @@ TRILHA = [
         ("Fase 13", "Romanos", "Romans", "Hebrews", "Galatians", "Ephesians"),
         ("Fase 14", "Apocalipse", "Revelation", "Revelations", "Apocalypse", "Acts"),
     ]),
+    ("Módulo 37: 🔊 Listening - Palavras do Dia a Dia", 2, [
+        ("Fase 1", "Ouça e escolha", "Welcome", "Goodbye", "Hello", "Sorry"),
+        ("Fase 2", "Ouça e escolha", "Thank you", "Please", "Excuse me", "Sorry"),
+        ("Fase 3", "Ouça e escolha", "Sorry", "Please", "Excuse", "Pardon"),
+        ("Fase 4", "Ouça e escolha", "Yes", "No", "Maybe", "Sure"),
+        ("Fase 5", "Ouça e escolha", "Today", "Tomorrow", "Yesterday", "Tonight"),
+        ("Fase 6", "Ouça e escolha", "Morning", "Evening", "Night", "Afternoon"),
+        ("Fase 7", "Ouça e escolha", "Right", "Left", "Center", "Wrong"),
+        ("Fase 8", "Ouça e escolha", "Open", "Close", "Lock", "Knock"),
+        ("Fase 9", "Ouça e escolha", "Now", "Then", "Soon", "Never"),
+        ("Fase 10", "Ouça e escolha", "Always", "Never", "Sometimes", "Often"),
+        ("Fase 11", "Ouça e escolha", "Help", "Hold", "Hope", "Hide"),
+        ("Fase 12", "Ouça e escolha", "Bread", "Bread bag", "Brand", "Breed"),
+    ]),
+    ("Módulo 38: 🔊 Listening - Frases Bíblicas", 2, [
+        ("Fase 1", "Ouça e escolha", "God is love", "God is good", "God is great", "God is light"),
+        ("Fase 2", "Ouça e escolha", "Praise the Lord", "Praise to Lord", "Praise our Lord", "Praise the King"),
+        ("Fase 3", "Ouça e escolha", "Jesus loves you", "Jesus saves you", "Jesus calls you", "Jesus knows you"),
+        ("Fase 4", "Ouça e escolha", "Glory to God", "Glory for God", "Glory of God", "Glory and God"),
+        ("Fase 5", "Ouça e escolha", "Holy Spirit", "Holy Father", "Holy God", "Holy One"),
+        ("Fase 6", "Ouça e escolha", "Amen", "Awoman", "Yeman", "Aimin"),
+        ("Fase 7", "Ouça e escolha", "Hallelujah", "Hello there", "Holiday", "Hollywood"),
+        ("Fase 8", "Ouça e escolha", "Have faith", "Have fate", "Have it", "Have feet"),
+        ("Fase 9", "Ouça e escolha", "Be blessed", "Be best", "Be brave", "Be back"),
+        ("Fase 10", "Ouça e escolha", "Pray with me", "Pay with me", "Play with me", "Stay with me"),
+    ]),
 ]
 
 # Explicações pedagógicas - só onde realmente ajuda (gramática)
@@ -1259,7 +1341,7 @@ def iniciar_banco():
         melhor_streak INTEGER DEFAULT 0,
         criado_em TEXT
     )''')
-    cur.execute('CREATE TABLE IF NOT EXISTS modulos (id INTEGER PRIMARY KEY AUTOINCREMENT, titulo TEXT NOT NULL UNIQUE, nivel INTEGER DEFAULT 1)')
+    cur.execute('CREATE TABLE IF NOT EXISTS modulos (id INTEGER PRIMARY KEY AUTOINCREMENT, titulo TEXT NOT NULL UNIQUE, nivel INTEGER DEFAULT 1, audio_puro INTEGER DEFAULT 0)')
     cur.execute('''CREATE TABLE IF NOT EXISTS licoes (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         modulo_id INTEGER,
@@ -1325,6 +1407,7 @@ def iniciar_banco():
         ("alunos", "streak_vitorias_duelo", "INTEGER", 0),
         ("alunos", "melhor_streak_vitorias_duelo", "INTEGER", 0),
         ("modulos", "nivel", "INTEGER", 1),
+        ("modulos", "audio_puro", "INTEGER", 0),
         ("licoes", "opcao_4", "TEXT", None),
         ("licoes", "explicacao", "TEXT", None),
         ("duelos", "xp_apostado", "INTEGER", None),
@@ -1345,12 +1428,15 @@ def iniciar_banco():
 
     # Inserir só módulos que ainda não existem (por título)
     for titulo, nivel, licoes in TRILHA:
+        eh_audio_puro = 1 if titulo in MODULOS_AUDIO_PURO else 0
         cur.execute("SELECT id FROM modulos WHERE titulo = ?", (titulo,))
         if cur.fetchone():
-            # módulo já existe - atualizar o nível caso tenha mudado
-            cur.execute("UPDATE modulos SET nivel = ? WHERE titulo = ?", (nivel, titulo))
+            # módulo já existe - atualizar nível e audio_puro caso tenha mudado
+            cur.execute("UPDATE modulos SET nivel = ?, audio_puro = ? WHERE titulo = ?",
+                        (nivel, eh_audio_puro, titulo))
             continue
-        cur.execute("INSERT INTO modulos (titulo, nivel) VALUES (?, ?)", (titulo, nivel))
+        cur.execute("INSERT INTO modulos (titulo, nivel, audio_puro) VALUES (?, ?, ?)",
+                    (titulo, nivel, eh_audio_puro))
         mid = cur.lastrowid
         for l in licoes:
             explicacao = EXPLICACOES.get((titulo, l[0]), "")
@@ -1370,7 +1456,8 @@ for k, v in [("tela", "login"), ("vidas", 3), ("respondido", False),
              ("duelo_questoes", []), ("duelo_idx", 0),
              ("duelo_iniciado_em", None), ("duelo_aposta", None),
              ("duelo_torneio_partida_id", None),
-             ("modo_desafio_diario", False), ("onboarding_slide", 0)]:
+             ("modo_desafio_diario", False), ("onboarding_slide", 0),
+             ("modo_cronometro", False), ("questao_iniciada_em", None)]:
     if k not in st.session_state:
         st.session_state[k] = v
 
@@ -1404,10 +1491,20 @@ def processar_resposta(resp, correta, lic_id, explicacao, forcar=None):
             xp_ganho = DESAFIO_XP_BONUS
         else:
             xp_ganho = XP_REVISAO if st.session_state.modo_revisao else XP_POR_ACERTO
+
+        # Bônus de velocidade se cronômetro estiver ativo
+        bonus = 0
+        if st.session_state.get("modo_cronometro") and st.session_state.get("questao_iniciada_em"):
+            tempo_resposta = time.time() - st.session_state.questao_iniciada_em
+            bonus = calcular_bonus_velocidade(tempo_resposta)
+            st.session_state.ultimo_tempo_resposta = tempo_resposta
+            st.session_state.ultimo_bonus = bonus
+
         st.session_state.feedback_acerto = True
-        st.session_state.feedback_xp = xp_ganho
-        st.session_state.feedback = f"✅ Correto!"
-        executar("UPDATE alunos SET xp_total = xp_total + ? WHERE id = ?", (xp_ganho, uid))
+        st.session_state.feedback_xp = xp_ganho + bonus
+        st.session_state.feedback_bonus = bonus
+        st.session_state.feedback = "✅ Correto!"
+        executar("UPDATE alunos SET xp_total = xp_total + ? WHERE id = ?", (xp_ganho + bonus, uid))
         if not st.session_state.modo_revisao and not st.session_state.get("modo_desafio_diario"):
             executar("INSERT OR IGNORE INTO progresso VALUES (?,?)", (uid, lic_id))
         if st.session_state.modo_revisao:
@@ -1425,11 +1522,17 @@ def processar_resposta(resp, correta, lic_id, explicacao, forcar=None):
 def mostrar_feedback(correta, explicacao):
     if st.session_state.get("feedback_acerto"):
         xp_ganho = st.session_state.get("feedback_xp", 10)
+        bonus = st.session_state.get("feedback_bonus", 0)
+        tempo = st.session_state.get("ultimo_tempo_resposta")
+        bonus_html = ""
+        if bonus > 0:
+            bonus_html = f" <span style='color:var(--accent);font-size:0.95rem;'>🚀 +{bonus} bônus ({tempo:.1f}s)</span>"
         st.markdown(
             f"<div style='display:flex;align-items:center;gap:14px;'>"
             f"<span style='font-size:1.6rem;'>✅</span>"
             f"<span style='font-size:1.2rem;font-weight:600;color:var(--primary-light);'>Correto!</span>"
             f"<span class='xp-floating'>+{xp_ganho} XP</span>"
+            f"{bonus_html}"
             f"</div>", unsafe_allow_html=True)
     else:
         st.markdown(st.session_state.feedback)
@@ -1443,6 +1546,7 @@ def botao_proxima(trilha, idx):
             st.session_state.idx += 1
             st.session_state.respondido = False
             st.session_state.opcoes_atuais = []
+            st.session_state.questao_iniciada_em = None  # reseta cronômetro
             st.rerun()
         else:
             uid = st.session_state.uid
@@ -1470,6 +1574,117 @@ def botao_proxima(trilha, idx):
 # =========================================================
 # SIDEBAR DE NAVEGAÇÃO (renderiza em todas as telas exceto login/onboarding)
 # =========================================================
+# =========================================================
+# CERTIFICADOS EM PDF
+# =========================================================
+def gerar_certificado_pdf(nome_aluno, titulo_modulo, data_conclusao, xp_modulo):
+    """Gera certificado PDF em memória, retorna bytes."""
+    from io import BytesIO
+    from reportlab.lib.pagesizes import landscape, A4
+    from reportlab.lib.units import cm
+    from reportlab.pdfgen import canvas
+    from reportlab.lib.colors import HexColor
+
+    buf = BytesIO()
+    largura, altura = landscape(A4)
+    c = canvas.Canvas(buf, pagesize=landscape(A4))
+
+    # Cores da identidade visual
+    cor_primary = HexColor("#10B981")
+    cor_gold = HexColor("#F59E0B")
+    cor_dark = HexColor("#0B1014")
+    cor_text = HexColor("#1F2937")
+    cor_dim = HexColor("#6B7280")
+
+    # Borda decorativa (frame duplo)
+    c.setStrokeColor(cor_primary)
+    c.setLineWidth(3)
+    c.rect(0.8*cm, 0.8*cm, largura - 1.6*cm, altura - 1.6*cm)
+    c.setStrokeColor(cor_gold)
+    c.setLineWidth(1)
+    c.rect(1.2*cm, 1.2*cm, largura - 2.4*cm, altura - 2.4*cm)
+
+    # Cabeçalho - nome da escola
+    c.setFillColor(cor_dim)
+    c.setFont("Helvetica", 12)
+    c.drawCentredString(largura/2, altura - 2.2*cm, "BETHANY CHURCH ENGLISH SCHOOL")
+
+    c.setFillColor(cor_primary)
+    c.setFont("Helvetica-Bold", 11)
+    c.drawCentredString(largura/2, altura - 2.8*cm, "Sheep Teacher")
+
+    # Título do certificado
+    c.setFillColor(cor_dark)
+    c.setFont("Helvetica-Bold", 38)
+    c.drawCentredString(largura/2, altura - 5.2*cm, "Certificado de Conclusão")
+
+    # Linha decorativa
+    c.setStrokeColor(cor_gold)
+    c.setLineWidth(2)
+    c.line(largura/2 - 3*cm, altura - 5.8*cm, largura/2 + 3*cm, altura - 5.8*cm)
+
+    # Texto introdutório
+    c.setFillColor(cor_text)
+    c.setFont("Helvetica", 14)
+    c.drawCentredString(largura/2, altura - 7.5*cm, "Certificamos que")
+
+    # Nome do aluno em destaque
+    c.setFillColor(cor_primary)
+    c.setFont("Helvetica-Bold", 32)
+    c.drawCentredString(largura/2, altura - 9.2*cm, nome_aluno)
+
+    # Texto de conclusão
+    c.setFillColor(cor_text)
+    c.setFont("Helvetica", 13)
+    c.drawCentredString(largura/2, altura - 10.5*cm, "concluiu com êxito o módulo")
+
+    # Nome do módulo
+    c.setFillColor(cor_dark)
+    c.setFont("Helvetica-Bold", 20)
+    # Remove emoji do título se houver (pra evitar quadradinhos em fontes sem suporte)
+    titulo_limpo = "".join(ch for ch in titulo_modulo if ord(ch) < 0x1F000).strip()
+    c.drawCentredString(largura/2, altura - 12*cm, titulo_limpo)
+
+    # XP conquistado
+    c.setFillColor(cor_gold)
+    c.setFont("Helvetica-Bold", 14)
+    c.drawCentredString(largura/2, altura - 13.5*cm, f"★  {xp_modulo} XP conquistados  ★")
+
+    # Data + assinaturas
+    c.setFillColor(cor_dim)
+    c.setFont("Helvetica", 11)
+    c.drawCentredString(largura/2, altura - 16*cm, f"Marília, {data_conclusao}")
+
+    # Linha de assinatura
+    c.setStrokeColor(cor_dark)
+    c.setLineWidth(0.5)
+    c.line(largura/2 - 4*cm, 2.8*cm, largura/2 + 4*cm, 2.8*cm)
+    c.setFont("Helvetica", 10)
+    c.setFillColor(cor_text)
+    c.drawCentredString(largura/2, 2.3*cm, "Coordenação - Bethany Church English School")
+
+    c.save()
+    buf.seek(0)
+    return buf.getvalue()
+
+def modulos_completos_do_aluno(uid):
+    """Retorna lista de módulos que o aluno completou (todas as lições)."""
+    return consultar("""
+        SELECT m.id, m.titulo
+        FROM modulos m
+        WHERE NOT EXISTS (
+            SELECT 1 FROM licoes l
+            WHERE l.modulo_id = m.id
+            AND l.id NOT IN (SELECT licao_id FROM progresso WHERE aluno_id = ?)
+        )
+        ORDER BY m.id
+    """, (uid,))
+
+def xp_do_modulo(modulo_id):
+    """Estima o XP conquistado num módulo (10 XP por lição)."""
+    qtd = consultar_um("SELECT COUNT(*) FROM licoes WHERE modulo_id = ?", (modulo_id,))[0]
+    return qtd * XP_POR_ACERTO
+
 def render_sidebar():
     """Renderiza menu lateral de navegação. Só pra alunos logados."""
     if st.session_state.tela in ("login", "onboarding") or "uid" not in st.session_state:
@@ -1974,7 +2189,20 @@ elif st.session_state.tela == "licao":
     # Tipo de exercício
     # Aulas normais e revisão: rotaciona MC, LISTEN, TYPE para variedade (audio e escrita).
     # Desafio diário: só MC pra ser rápido (1 pergunta só).
-    if st.session_state.get("modo_desafio_diario"):
+    # Módulos audio_puro: TODAS as questões em modo Listen
+    eh_audio_puro = False
+    if not st.session_state.modo_revisao and not st.session_state.get("modo_desafio_diario"):
+        # Detecta se a lição atual pertence a um módulo audio_puro
+        mod_info = consultar_um(
+            "SELECT m.audio_puro FROM licoes l JOIN modulos m ON m.id = l.modulo_id WHERE l.id = ?",
+            (lic_id,)
+        )
+        if mod_info and mod_info[0]:
+            eh_audio_puro = True
+
+    if eh_audio_puro:
+        tipo = "listen"
+    elif st.session_state.get("modo_desafio_diario"):
         tipo = "mc"
     elif st.session_state.modo_revisao:
         tipo = ["mc", "listen", "type"][idx % 3]
@@ -1983,7 +2211,7 @@ elif st.session_state.tela == "licao":
         tipo = ["mc", "listen", "mc", "type"][idx % 4]
 
     # Header
-    c_sair, c_prog = st.columns([1, 4])
+    c_sair, c_prog, c_crono = st.columns([1, 3, 1])
     with c_sair:
         if st.button("⬅️ Menu"):
             reset_para_inicio(); st.rerun()
@@ -1996,8 +2224,43 @@ elif st.session_state.tela == "licao":
         else:
             modo_label = "📘 Aprendizado"
         st.write(f"{modo_label} — Fase {idx + 1} de {len(trilha)}")
+    with c_crono:
+        # Toggle do cronômetro (só fora de desafio diário/revisão)
+        if not st.session_state.get("modo_desafio_diario"):
+            crono_label = "⏱️ Cronômetro ON" if st.session_state.modo_cronometro else "⏱️ Cronômetro OFF"
+            if st.button(crono_label, key=f"toggle_crono_{idx}", help="Bônus de XP por velocidade: <3s=+5, <6s=+3, <10s=+1"):
+                st.session_state.modo_cronometro = not st.session_state.modo_cronometro
+                st.rerun()
+
+    # Inicia o cronômetro da questão atual (se ainda não foi iniciado)
+    if not st.session_state.respondido and st.session_state.questao_iniciada_em is None:
+        st.session_state.questao_iniciada_em = time.time()
 
     st.markdown(f"### Vidas: {'❤️' * st.session_state.vidas}")
+
+    # Cronômetro visual (se ativo)
+    if st.session_state.modo_cronometro and not st.session_state.respondido:
+        st.components.v1.html(f"""
+        <div id='crono' style='color:var(--primary);font-weight:700;font-size:1.4rem;
+             font-family:Sora,sans-serif;text-align:center;
+             background:rgba(16,185,129,0.08);padding:8px;border-radius:10px;
+             border:1px solid rgba(16,185,129,0.3);margin-bottom:10px;'>⏱️ 0.0s</div>
+        <script>
+            (function(){{
+                var t0 = Date.now();
+                var el = document.getElementById('crono');
+                var iv = setInterval(function(){{
+                    var s = ((Date.now()-t0)/1000).toFixed(1);
+                    el.textContent = '⏱️ ' + s + 's';
+                    var sNum = parseFloat(s);
+                    if (sNum < 3) el.style.color = '#FCD34D';
+                    else if (sNum < 6) el.style.color = '#34D399';
+                    else if (sNum < 10) el.style.color = '#94A3B8';
+                    else el.style.color = '#94A3B8';
+                }}, 100);
+            }})();
+        </script>
+        """, height=60)
 
     if not st.session_state.opcoes_atuais:
         ops = [o1, o2, o3, o4]
@@ -2056,10 +2319,9 @@ elif st.session_state.tela == "licao":
                         if not resp.strip():
                             st.warning("Digite uma resposta.")
                         else:
-                            # Comparação tolerante: minúsculas, sem espaços extras, sem pontuação no fim
-                            limpa = lambda s: s.strip().lower().rstrip(".!?,;:")
-                            acertou = limpa(resp) == limpa(correta)
-                            processar_resposta(resp if acertou else resp, correta, lic_id, explicacao, forcar=acertou)
+                            # Comparação tolerante: minúsculas, contrações expandidas, alternativas X / Y
+                            acertou = acerto_typing(resp, correta)
+                            processar_resposta(resp, correta, lic_id, explicacao, forcar=acertou)
                             st.rerun()
             else:
                 mostrar_feedback(correta, explicacao)
@@ -2787,8 +3049,47 @@ elif st.session_state.tela == "perfil":
 
         st.markdown("<br>", unsafe_allow_html=True)
 
+        # Certificados de módulos completos
+        st.markdown("### 📜 Meus Certificados")
+        modulos_completos = modulos_completos_do_aluno(pid)
+        if not modulos_completos:
+            st.caption("Complete um módulo inteiro pra desbloquear seu primeiro certificado!")
+        else:
+            for mod_id, mod_titulo in modulos_completos:
+                xp_mod = xp_do_modulo(mod_id)
+                icone = icone_modulo(mod_titulo)
+                c1, c2 = st.columns([4, 1])
+                with c1:
+                    st.markdown(
+                        f"<div class='ranking-box' style='border-left-color:var(--gold);display:flex;align-items:center;gap:12px;'>"
+                        f"<div style='font-size:1.8rem;'>{icone}</div>"
+                        f"<div style='flex:1;'><b>{mod_titulo}</b><br>"
+                        f"<small style='color:var(--text-muted);'>{xp_mod} XP · Módulo completo</small></div></div>",
+                        unsafe_allow_html=True
+                    )
+                with c2:
+                    # Só permite baixar se for o próprio aluno olhando o próprio perfil
+                    if is_self:
+                        pdf_bytes = gerar_certificado_pdf(
+                            nome,
+                            mod_titulo,
+                            date.today().strftime("%d/%m/%Y"),
+                            xp_mod
+                        )
+                        nome_arquivo = f"certificado_{nome.replace(' ', '_')}_{mod_id}.pdf"
+                        st.download_button(
+                            "📥 Baixar",
+                            data=pdf_bytes,
+                            file_name=nome_arquivo,
+                            mime="application/pdf",
+                            key=f"cert_dl_{mod_id}",
+                            use_container_width=True
+                        )
+
+        st.markdown("<br>", unsafe_allow_html=True)
+
         # Últimos duelos
-        st.markdown("### 📜 Últimos duelos")
+        st.markdown("### ⚔️ Últimos duelos")
         hist = duelos_finalizados(pid, limite=5)
         if not hist:
             st.caption("Nenhum duelo finalizado ainda.")
