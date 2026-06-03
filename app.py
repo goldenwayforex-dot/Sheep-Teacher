@@ -136,7 +136,10 @@ MODULO_ICONES = {
     "Módulo 9":  "👋", "Módulo 10": "👥", "Módulo 11": "🔑", "Módulo 12": "👨‍👩‍👧",
     "Módulo 13": "🍞", "Módulo 14": "🫀", "Módulo 15": "📅", "Módulo 16": "☁️",
     "Módulo 17": "❓", "Módulo 18": "🏃", "Módulo 19": "🙏", "Módulo 20": "✝️",
-    "Módulo 21": "🎵", "Módulo 22": "📍",
+    "Módulo 21": "🎵", "Módulo 22": "📍", "Módulo 23": "🗣️", "Módulo 24": "🚫",
+    "Módulo 25": "🔜", "Módulo 26": "💪", "Módulo 27": "⏪", "Módulo 28": "⏮️",
+    "Módulo 29": "🐾", "Módulo 30": "👕", "Módulo 31": "🏠", "Módulo 32": "💼",
+    "Módulo 33": "🏙️", "Módulo 34": "💗", "Módulo 35": "🕊️", "Módulo 36": "📜",
 }
 
 def icone_modulo(titulo):
@@ -1032,6 +1035,187 @@ TRILHA = [
         ("Fase 9", "Longe de", "Far from", "Far of", "Long from", "Distant of"),
         ("Fase 10", "Entre (dois)", "Between", "Among only", "Middle", "Inter"),
     ]),
+    ("Módulo 23: Present Simple - Afirmativo", 2, [
+        ("Fase 1", "Eu trabalho todo dia", "I work every day", "I works every day", "I am work every day", "I working every day"),
+        ("Fase 2", "Ela canta no coral", "She sings in the choir", "She sing in the choir", "She singing in the choir", "She is sing in the choir"),
+        ("Fase 3", "Ele estuda a Bíblia", "He studies the Bible", "He study the Bible", "He studys the Bible", "He is study the Bible"),
+        ("Fase 4", "Nós oramos juntos", "We pray together", "We prays together", "We praying together", "We are pray together"),
+        ("Fase 5", "Eles vão à igreja", "They go to church", "They goes to church", "They going to church", "They is go to church"),
+        ("Fase 6", "Você fala inglês", "You speak English", "You speaks English", "You speaking English", "You is speak English"),
+        ("Fase 7", "Ela ensina crianças", "She teaches children", "She teach children", "She teachs children", "She is teach children"),
+        ("Fase 8", "Eu leio todo dia", "I read every day", "I reads every day", "I am read every day", "I reading every day"),
+        ("Fase 9", "Ele assiste o sermão", "He watches the sermon", "He watch the sermon", "He watchs the sermon", "He is watch the sermon"),
+        ("Fase 10", "Nós cantamos louvores", "We sing praises", "We sings praises", "We are sing praises", "We singing praises"),
+    ]),
+    ("Módulo 24: Present Simple - Negativo", 2, [
+        ("Fase 1", "Eu não trabalho aos domingos", "I do not work on Sundays", "I not work on Sundays", "I don't works on Sundays", "I am not work on Sundays"),
+        ("Fase 2", "Ela não come carne", "She does not eat meat", "She do not eat meat", "She not eat meat", "She is not eat meat"),
+        ("Fase 3", "Ele não fala espanhol", "He does not speak Spanish", "He do not speak Spanish", "He not speaks Spanish", "He is not speak Spanish"),
+        ("Fase 4", "Nós não jogamos futebol", "We do not play soccer", "We does not play soccer", "We not play soccer", "We are not play soccer"),
+        ("Fase 5", "Eles não vão à praia", "They do not go to the beach", "They does not go to the beach", "They not go to the beach", "They are not go to the beach"),
+        ("Fase 6", "Você não bebe café", "You do not drink coffee", "You does not drink coffee", "You not drink coffee", "You is not drink coffee"),
+        ("Fase 7", "Ela não dirige", "She does not drive", "She do not drive", "She not drive", "She is not drive"),
+        ("Fase 8", "Eu não esqueço de Deus", "I do not forget God", "I does not forget God", "I not forget God", "I am not forget God"),
+    ]),
+    ("Módulo 25: Going to - Futuro", 2, [
+        ("Fase 1", "Eu vou estudar amanhã", "I am going to study tomorrow", "I going to study tomorrow", "I am go to study tomorrow", "I will going to study tomorrow"),
+        ("Fase 2", "Ela vai cantar no culto", "She is going to sing at the service", "She going to sing at the service", "She is go sing at the service", "She will going to sing"),
+        ("Fase 3", "Nós vamos viajar", "We are going to travel", "We going to travel", "We are go to travel", "We will going to travel"),
+        ("Fase 4", "Eles vão orar pela igreja", "They are going to pray for the church", "They going to pray for the church", "They is going to pray", "They are go pray for the church"),
+        ("Fase 5", "Vai chover hoje", "It is going to rain today", "It going to rain today", "It is go to rain today", "It will going to rain today"),
+        ("Fase 6", "Você vai trabalhar?", "Are you going to work?", "You going to work?", "Are you go to work?", "You are going work?"),
+        ("Fase 7", "Ele vai ler a Bíblia", "He is going to read the Bible", "He going to read the Bible", "He is go to read the Bible", "He will going to read"),
+        ("Fase 8", "Eu vou orar agora", "I am going to pray now", "I going to pray now", "I am go pray now", "I will going to pray now"),
+    ]),
+    ("Módulo 26: Modal Verbs (can, must, should)", 2, [
+        ("Fase 1", "Eu posso ajudar", "I can help", "I can to help", "I cans help", "I am can help"),
+        ("Fase 2", "Ela pode cantar bem", "She can sing well", "She can sings well", "She can to sing well", "She cans sing well"),
+        ("Fase 3", "Você deve estudar", "You must study", "You must to study", "You musts study", "You am must study"),
+        ("Fase 4", "Nós devemos amar uns aos outros", "We should love one another", "We should loves one another", "We should to love one another", "We are should love"),
+        ("Fase 5", "Ele não pode dirigir", "He cannot drive", "He can't to drive", "He no can drive", "He cans not drive"),
+        ("Fase 6", "Eles devem orar", "They must pray", "They must to pray", "They musts pray", "They are must pray"),
+        ("Fase 7", "Você deveria descansar", "You should rest", "You should to rest", "You shoulds rest", "You are should rest"),
+        ("Fase 8", "Eu não devo mentir", "I must not lie", "I not must lie", "I am not must lie", "I do not must lie"),
+    ]),
+    ("Módulo 27: Verbos no Passado (Regulares)", 2, [
+        ("Fase 1", "Eu trabalhei ontem", "I worked yesterday", "I worky yesterday", "I am work yesterday", "I work yesterday"),
+        ("Fase 2", "Ela orou pela família", "She prayed for the family", "She pray for the family", "She prayd for the family", "She is pray for the family"),
+        ("Fase 3", "Ele estudou a Palavra", "He studied the Word", "He studyed the Word", "He study the Word", "He is study the Word"),
+        ("Fase 4", "Nós cozinhamos juntos (passado)", "We cooked together", "We cookd together", "We cook together", "We are cook together"),
+        ("Fase 5", "Eles caminharam ao parque", "They walked to the park", "They walkd to the park", "They walk to the park", "They are walk to the park"),
+        ("Fase 6", "Você visitou seu avô", "You visited your grandfather", "You visit your grandfather", "You visitd your grandfather", "You are visit your grandfather"),
+        ("Fase 7", "Ela perguntou ao pastor", "She asked the pastor", "She ask the pastor", "She askd the pastor", "She is ask the pastor"),
+        ("Fase 8", "Eu joguei bola", "I played soccer", "I plays soccer", "I plaied soccer", "I am play soccer"),
+        ("Fase 9", "Ele esperou no carro", "He waited in the car", "He wait in the car", "He waitd in the car", "He is wait in the car"),
+        ("Fase 10", "Nós ajudamos os pobres", "We helped the poor", "We help the poor", "We helpd the poor", "We are help the poor"),
+    ]),
+    ("Módulo 28: Verbos no Passado (Irregulares)", 3, [
+        ("Fase 1", "Eu fui à igreja", "I went to church", "I goed to church", "I gone to church", "I was go to church"),
+        ("Fase 2", "Ele veio cedo", "He came early", "He comed early", "He coming early", "He was come early"),
+        ("Fase 3", "Ela viu o pastor", "She saw the pastor", "She seed the pastor", "She seen the pastor", "She was see the pastor"),
+        ("Fase 4", "Nós comemos juntos (passado)", "We ate together", "We eated together", "We eaten together", "We was eat together"),
+        ("Fase 5", "Eles falaram sobre Deus", "They spoke about God", "They speaked about God", "They spoken about God", "They was speak about God"),
+        ("Fase 6", "Eu fiz minha lição", "I did my homework", "I doed my homework", "I done my homework", "I was do my homework"),
+        ("Fase 7", "Ela disse a verdade", "She told the truth", "She sayed the truth", "She say the truth", "She was say the truth"),
+        ("Fase 8", "Ele teve fé", "He had faith", "He haved faith", "He has faith", "He was have faith"),
+        ("Fase 9", "Eu pensei nele", "I thought of him", "I thinked of him", "I thoughted of him", "I was think of him"),
+        ("Fase 10", "Você sabia disso?", "Did you know that?", "Do you knew that?", "You knowed that?", "You did knew that?"),
+    ]),
+    ("Módulo 29: Animais", 1, [
+        ("Fase 1", "Cachorro", "Dog", "Cat", "Bird", "Wolf"),
+        ("Fase 2", "Gato", "Cat", "Dog", "Mouse", "Lion"),
+        ("Fase 3", "Pássaro", "Bird", "Fish", "Bee", "Bat"),
+        ("Fase 4", "Peixe", "Fish", "Snake", "Bird", "Frog"),
+        ("Fase 5", "Cavalo", "Horse", "Cow", "Sheep", "Goat"),
+        ("Fase 6", "Vaca", "Cow", "Horse", "Pig", "Bull"),
+        ("Fase 7", "Ovelha", "Sheep", "Goat", "Lamb", "Cow"),
+        ("Fase 8", "Cordeiro", "Lamb", "Sheep", "Goat", "Calf"),
+        ("Fase 9", "Leão", "Lion", "Tiger", "Bear", "Wolf"),
+        ("Fase 10", "Águia", "Eagle", "Hawk", "Falcon", "Owl"),
+        ("Fase 11", "Pomba", "Dove", "Pigeon", "Sparrow", "Hawk"),
+        ("Fase 12", "Cobra (serpente)", "Snake", "Serpent only", "Lizard", "Worm"),
+    ]),
+    ("Módulo 30: Roupas", 1, [
+        ("Fase 1", "Camisa", "Shirt", "Pants", "Coat", "Hat"),
+        ("Fase 2", "Calça", "Pants", "Shorts", "Skirt", "Belt"),
+        ("Fase 3", "Vestido", "Dress", "Skirt", "Robe", "Coat"),
+        ("Fase 4", "Sapato", "Shoe", "Sock", "Boot", "Sandal"),
+        ("Fase 5", "Chapéu", "Hat", "Cap only", "Helmet", "Scarf"),
+        ("Fase 6", "Casaco", "Coat", "Shirt", "Sweater only", "Jacket only"),
+        ("Fase 7", "Meia", "Sock", "Shoe", "Stocking only", "Glove"),
+        ("Fase 8", "Cinto", "Belt", "Tie", "Strap", "Buckle"),
+        ("Fase 9", "Saia", "Skirt", "Dress", "Pants", "Robe"),
+        ("Fase 10", "Bolsa", "Bag", "Purse only", "Box", "Case"),
+    ]),
+    ("Módulo 31: Casa e Móveis", 1, [
+        ("Fase 1", "Casa", "House", "Home only", "Building", "Cabin"),
+        ("Fase 2", "Sala", "Living room", "Kitchen", "Bedroom", "Hall"),
+        ("Fase 3", "Cozinha", "Kitchen", "Bathroom", "Pantry", "Diner"),
+        ("Fase 4", "Quarto", "Bedroom", "Living room", "Bath", "Closet"),
+        ("Fase 5", "Banheiro", "Bathroom", "Kitchen", "Closet", "Sink"),
+        ("Fase 6", "Mesa", "Table", "Chair", "Desk only", "Shelf"),
+        ("Fase 7", "Cadeira", "Chair", "Sofa", "Stool only", "Bench"),
+        ("Fase 8", "Cama", "Bed", "Sofa", "Bench", "Couch"),
+        ("Fase 9", "Sofá", "Sofa", "Chair", "Bed", "Recliner only"),
+        ("Fase 10", "Porta", "Door", "Window", "Gate only", "Entrance"),
+        ("Fase 11", "Janela", "Window", "Door", "Mirror", "Shutter"),
+        ("Fase 12", "Espelho", "Mirror", "Window", "Glass", "Picture"),
+    ]),
+    ("Módulo 32: Profissões", 2, [
+        ("Fase 1", "Professor", "Teacher", "Student", "Doctor", "Tutor"),
+        ("Fase 2", "Médico", "Doctor", "Teacher", "Nurse", "Surgeon only"),
+        ("Fase 3", "Engenheiro", "Engineer", "Architect", "Builder", "Mechanic"),
+        ("Fase 4", "Missionário", "Missionary", "Pastor", "Priest", "Volunteer"),
+        ("Fase 5", "Padeiro", "Baker", "Cook", "Chef", "Farmer"),
+        ("Fase 6", "Cozinheiro", "Cook", "Baker", "Waiter", "Butler"),
+        ("Fase 7", "Motorista", "Driver", "Mechanic", "Pilot", "Passenger"),
+        ("Fase 8", "Estudante", "Student", "Teacher", "Pupil only", "Reader"),
+        ("Fase 9", "Carpinteiro", "Carpenter", "Mason", "Painter", "Plumber"),
+        ("Fase 10", "Pescador", "Fisherman", "Sailor", "Hunter", "Farmer"),
+        ("Fase 11", "Agricultor", "Farmer", "Fisherman", "Gardener", "Worker"),
+        ("Fase 12", "Enfermeiro", "Nurse", "Doctor", "Helper", "Carer"),
+    ]),
+    ("Módulo 33: Lugares da Cidade", 1, [
+        ("Fase 1", "Escola", "School", "Church", "Hospital", "Office"),
+        ("Fase 2", "Hospital", "Hospital", "Clinic", "School", "Pharmacy"),
+        ("Fase 3", "Mercado", "Supermarket", "Store only", "Mall", "Shop only"),
+        ("Fase 4", "Restaurante", "Restaurant", "Café", "Diner only", "Bar"),
+        ("Fase 5", "Banco", "Bank", "ATM only", "Office", "Building"),
+        ("Fase 6", "Parque", "Park", "Garden", "Field", "Plaza"),
+        ("Fase 7", "Praia", "Beach", "Coast only", "Sea", "Shore only"),
+        ("Fase 8", "Padaria", "Bakery", "Market", "Café", "Shop"),
+        ("Fase 9", "Farmácia", "Pharmacy", "Hospital", "Clinic", "Store"),
+        ("Fase 10", "Posto de gasolina", "Gas station", "Parking lot", "Garage", "Stop"),
+        ("Fase 11", "Aeroporto", "Airport", "Station", "Port", "Terminal only"),
+        ("Fase 12", "Biblioteca", "Library", "Bookstore", "School", "Office"),
+    ]),
+    ("Módulo 34: Sentimentos e Emoções", 2, [
+        ("Fase 1", "Feliz", "Happy", "Sad", "Tired", "Angry"),
+        ("Fase 2", "Triste", "Sad", "Happy", "Bored", "Tired"),
+        ("Fase 3", "Alegre", "Joyful", "Sad", "Angry", "Calm"),
+        ("Fase 4", "Bravo", "Angry", "Happy", "Tired", "Glad"),
+        ("Fase 5", "Cansado", "Tired", "Energetic", "Happy", "Awake"),
+        ("Fase 6", "Animado", "Excited", "Bored", "Tired", "Sad"),
+        ("Fase 7", "Calmo", "Calm", "Nervous", "Excited", "Loud"),
+        ("Fase 8", "Nervoso", "Nervous", "Calm", "Sleepy", "Bored"),
+        ("Fase 9", "Amor", "Love", "Hate", "Liking only", "Friendship"),
+        ("Fase 10", "Paz", "Peace", "War", "Fight", "Trouble"),
+        ("Fase 11", "Esperança", "Hope", "Faith", "Despair", "Doubt"),
+        ("Fase 12", "Gratidão", "Gratitude", "Anger", "Hope", "Faith"),
+    ]),
+    ("Módulo 35: Personagens Bíblicos", 1, [
+        ("Fase 1", "Jesus", "Jesus", "Joshua", "Joseph", "Judah"),
+        ("Fase 2", "Maria", "Mary", "Martha", "Magdalene", "Mara"),
+        ("Fase 3", "José", "Joseph", "Jonah", "Josiah", "Joshua"),
+        ("Fase 4", "Davi", "David", "Daniel", "Dan", "Eli"),
+        ("Fase 5", "Moisés", "Moses", "Joshua", "Aaron", "Noah"),
+        ("Fase 6", "Abraão", "Abraham", "Isaac", "Adam", "Aaron"),
+        ("Fase 7", "Noé", "Noah", "Job", "Jonah", "Eli"),
+        ("Fase 8", "Adão", "Adam", "Abraham", "Noah", "Aaron"),
+        ("Fase 9", "Eva", "Eve", "Esther", "Ruth", "Sarah"),
+        ("Fase 10", "Paulo", "Paul", "Peter", "Saul only", "Philip"),
+        ("Fase 11", "Pedro", "Peter", "Paul", "Philip", "John"),
+        ("Fase 12", "João (apóstolo)", "John", "Joshua", "Jonah", "James"),
+        ("Fase 13", "Sara", "Sarah", "Ruth", "Esther", "Mary"),
+        ("Fase 14", "Rute", "Ruth", "Sarah", "Naomi", "Esther"),
+        ("Fase 15", "Daniel", "Daniel", "David", "Dan only", "Joshua"),
+    ]),
+    ("Módulo 36: Livros da Bíblia", 2, [
+        ("Fase 1", "Gênesis", "Genesis", "Exodus", "Joshua", "Judges"),
+        ("Fase 2", "Êxodo", "Exodus", "Genesis", "Leviticus", "Deuteronomy"),
+        ("Fase 3", "Levítico", "Leviticus", "Numbers", "Exodus", "Deuteronomy"),
+        ("Fase 4", "Salmos", "Psalms", "Proverbs", "Job", "Songs"),
+        ("Fase 5", "Provérbios", "Proverbs", "Psalms", "Ecclesiastes", "Songs"),
+        ("Fase 6", "Eclesiastes", "Ecclesiastes", "Proverbs", "Psalms", "Ezekiel"),
+        ("Fase 7", "Isaías", "Isaiah", "Jeremiah", "Ezekiel", "Daniel"),
+        ("Fase 8", "Mateus", "Matthew", "Mark", "Luke", "John"),
+        ("Fase 9", "Marcos", "Mark", "Matthew", "Luke", "John"),
+        ("Fase 10", "Lucas", "Luke", "Matthew", "Mark", "John"),
+        ("Fase 11", "João (evangelho)", "John", "Luke", "Mark", "Matthew"),
+        ("Fase 12", "Atos dos Apóstolos", "Acts", "Romans", "Hebrews", "James"),
+        ("Fase 13", "Romanos", "Romans", "Hebrews", "Galatians", "Ephesians"),
+        ("Fase 14", "Apocalipse", "Revelation", "Revelations", "Apocalypse", "Acts"),
+    ]),
 ]
 
 # Explicações pedagógicas - só onde realmente ajuda (gramática)
@@ -1050,6 +1234,16 @@ EXPLICACOES = {
     ("Módulo 11: Pronomes Possessivos", "Fase 1"): "'My' vem antes do substantivo (My Bible). 'Mine' vem sozinho (It is mine).",
     ("Módulo 17: Question Words", "Fase 8"): "'How much' = quanto (incontáveis ou preço). 'How many' = quantos (contáveis).",
     ("Módulo 22: Preposições de Lugar", "Fase 1"): "IN = dentro de algo grande (in the church). ON = em cima (on the table). AT = ponto específico (at the door).",
+    ("Módulo 23: Present Simple - Afirmativo", "Fase 1"): "No presente simples, I/You/We/They usam o verbo no infinitivo. He/She/It adicionam 's' no final.",
+    ("Módulo 23: Present Simple - Afirmativo", "Fase 2"): "She/He/It + verbo + S. Ex: She SINGS, He WORKS, It RAINS.",
+    ("Módulo 23: Present Simple - Afirmativo", "Fase 3"): "Verbos terminados em consoante+Y viram IES com he/she/it: study → studies.",
+    ("Módulo 24: Present Simple - Negativo", "Fase 1"): "Para negar verbos comuns: I/You/We/They + DO NOT + verbo. He/She/It + DOES NOT + verbo (sem o S no verbo).",
+    ("Módulo 24: Present Simple - Negativo", "Fase 2"): "DOES NOT come com he/she/it. Atenção: o verbo perde o S quando tem 'does not'. SHE DOES NOT EAT (não 'eats').",
+    ("Módulo 25: Going to - Futuro", "Fase 1"): "Going to expressa planos/intenções. Estrutura: SUJEITO + AM/IS/ARE + GOING TO + verbo no infinitivo.",
+    ("Módulo 26: Modal Verbs (can, must, should)", "Fase 1"): "CAN = poder (capacidade). MUST = dever (obrigação forte). SHOULD = deveria (sugestão). Verbos modais NUNCA vêm com 'to': 'I can help' (não 'I can to help').",
+    ("Módulo 26: Modal Verbs (can, must, should)", "Fase 5"): "Negativo: CANNOT (uma palavra só) ou CAN'T. MUST NOT ou MUSTN'T. SHOULD NOT ou SHOULDN'T.",
+    ("Módulo 27: Verbos no Passado (Regulares)", "Fase 1"): "Verbos regulares no passado: adicione -ED. Work → Worked. Play → Played. Verbos terminados em E só adicionam D: live → lived.",
+    ("Módulo 28: Verbos no Passado (Irregulares)", "Fase 1"): "Verbos irregulares não seguem regra: GO → WENT, COME → CAME, SEE → SAW. Precisa decorar.",
 }
 
 # --- INICIALIZAÇÃO DO BANCO ---
@@ -1391,55 +1585,73 @@ if st.session_state.tela == "login":
 
     l1, l2 = st.columns([2, 1])
     with l1:
-        st.markdown("### Acessar")
-        with st.form("login_form"):
-            nome = st.text_input("Nome", placeholder="Seu nome").strip()
-            pin = st.text_input("PIN (4 dígitos)", type="password", max_chars=8, placeholder="Ex: 1234")
-            st.caption("Primeira vez? Digite seu nome e crie um PIN. Ele será sua senha pra entrar de novo.")
-            entrou = st.form_submit_button("Acessar 🚀", use_container_width=True)
-            if entrou:
-                if not nome or not pin:
-                    st.warning("Preencha nome e PIN.")
-                elif len(pin) < 4:
-                    st.warning("O PIN precisa ter pelo menos 4 caracteres.")
-                else:
-                    # Caso especial: professor
-                    if nome.lower() == PROFESSOR_NOME:
-                        if pin == PROFESSOR_PIN:
+        tab_login, tab_novo = st.tabs(["🚪 Já tenho conta", "✨ Sou novo aqui"])
+
+        with tab_login:
+            with st.form("login_existente"):
+                nome_l = st.text_input("Seu nome", placeholder="Como você se cadastrou", key="l_nome").strip()
+                pin_l = st.text_input("Seu PIN", type="password", max_chars=8, placeholder="Sua senha de 4+ dígitos", key="l_pin")
+                entrar = st.form_submit_button("Entrar 🚀", use_container_width=True)
+                if entrar:
+                    if not nome_l or not pin_l:
+                        st.warning("Preencha nome e PIN.")
+                    elif nome_l.lower() == PROFESSOR_NOME:
+                        if pin_l == PROFESSOR_PIN:
                             st.session_state.tela = "admin"
                             st.session_state.aluno = "Professor"
                             st.rerun()
                         else:
                             st.error("PIN do professor incorreto.")
                     else:
-                        existente = consultar_um("SELECT id, pin_hash FROM alunos WHERE nome = ?", (nome,))
-                        if existente:
+                        existente = consultar_um("SELECT id, pin_hash FROM alunos WHERE nome = ?", (nome_l,))
+                        if not existente:
+                            st.error("Conta não encontrada. Vá em 'Sou novo aqui' pra criar uma.")
+                        else:
                             uid, pin_h = existente
-                            # Aluno antigo (sem PIN) → cria agora
                             if not pin_h:
-                                executar("UPDATE alunos SET pin_hash = ? WHERE id = ?", (hash_pin(pin), uid))
+                                # Aluno migrado do banco antigo (sem PIN): cadastra agora
+                                executar("UPDATE alunos SET pin_hash = ? WHERE id = ?", (hash_pin(pin_l), uid))
                                 st.session_state.uid = uid
-                                st.session_state.aluno = nome
-                                st.success("PIN cadastrado! Bem-vindo de volta.")
-                                streak = atualizar_streak_no_login(uid)
+                                st.session_state.aluno = nome_l
+                                atualizar_streak_no_login(uid)
                                 verificar_conquistas(uid)
                                 reset_para_inicio()
                                 st.rerun()
-                            elif pin_h == hash_pin(pin):
+                            elif pin_h == hash_pin(pin_l):
                                 st.session_state.uid = uid
-                                st.session_state.aluno = nome
-                                streak = atualizar_streak_no_login(uid)
+                                st.session_state.aluno = nome_l
+                                atualizar_streak_no_login(uid)
                                 verificar_conquistas(uid)
                                 reset_para_inicio()
                                 st.rerun()
                             else:
                                 st.error("PIN incorreto. Tente de novo.")
+
+        with tab_novo:
+            with st.form("cadastro_novo"):
+                nome_n = st.text_input("Escolha seu nome", placeholder="Como você vai aparecer no ranking", key="n_nome").strip()
+                pin_n = st.text_input("Crie um PIN", type="password", max_chars=8, placeholder="4 ou mais dígitos", key="n_pin")
+                pin_n2 = st.text_input("Confirme o PIN", type="password", max_chars=8, placeholder="Digite o PIN de novo", key="n_pin2")
+                st.caption("⚠️ Guarde bem seu PIN — é com ele que você volta a entrar.")
+                criar = st.form_submit_button("✨ Criar conta", use_container_width=True)
+                if criar:
+                    if not nome_n or not pin_n:
+                        st.warning("Preencha nome e PIN.")
+                    elif len(pin_n) < 4:
+                        st.warning("O PIN precisa ter pelo menos 4 caracteres.")
+                    elif pin_n != pin_n2:
+                        st.error("Os PINs não coincidem.")
+                    elif nome_n.lower() == PROFESSOR_NOME:
+                        st.error("Esse nome é reservado. Escolha outro.")
+                    else:
+                        ja_existe = consultar_um("SELECT 1 FROM alunos WHERE LOWER(nome) = LOWER(?)", (nome_n,))
+                        if ja_existe:
+                            st.error(f"❌ O nome **{nome_n}** já está em uso. Escolha outro nome ou, se for você, use a aba 'Já tenho conta'.")
                         else:
-                            # Novo aluno
                             uid = executar("INSERT INTO alunos (nome, pin_hash, criado_em) VALUES (?, ?, ?)",
-                                           (nome, hash_pin(pin), date.today().isoformat()))
+                                           (nome_n, hash_pin(pin_n), date.today().isoformat()))
                             st.session_state.uid = uid
-                            st.session_state.aluno = nome
+                            st.session_state.aluno = nome_n
                             atualizar_streak_no_login(uid)
                             verificar_conquistas(uid)
                             st.session_state.onboarding_slide = 0
@@ -1760,12 +1972,15 @@ elif st.session_state.tela == "licao":
     lic_id, pergunta, o1, o2, o3, o4, correta, explicacao = trilha[idx]
 
     # Tipo de exercício
-    # Modo revisão: rotaciona MC, LISTEN, TYPE para mais variedade.
-    # Modo normal: só MC (mais previsível para aprendizado inicial).
-    if st.session_state.modo_revisao:
+    # Aulas normais e revisão: rotaciona MC, LISTEN, TYPE para variedade (audio e escrita).
+    # Desafio diário: só MC pra ser rápido (1 pergunta só).
+    if st.session_state.get("modo_desafio_diario"):
+        tipo = "mc"
+    elif st.session_state.modo_revisao:
         tipo = ["mc", "listen", "type"][idx % 3]
     else:
-        tipo = "mc"
+        # Padrão: 2 MC, 1 Listen, 1 MC, 1 Type ... pra dosar variedade
+        tipo = ["mc", "listen", "mc", "type"][idx % 4]
 
     # Header
     c_sair, c_prog = st.columns([1, 4])
