@@ -3,6 +3,7 @@ import sqlite3
 import random
 import hashlib
 import json
+import time
 from datetime import date, datetime, timedelta
 
 # =========================================================
@@ -16,7 +17,7 @@ from datetime import date, datetime, timedelta
 # =========================================================
 
 # --- CONFIGURAÇÃO ---
-st.set_page_config(page_title="Sheep Teacher - Bethany Church", layout="wide", initial_sidebar_state="collapsed")
+st.set_page_config(page_title="Sheep Teacher - Bethany Church", layout="wide", initial_sidebar_state="expanded")
 
 DB_PATH = 'banco_ingles.db'
 PROFESSOR_NOME = "professor"           # nome reservado para o painel admin
@@ -29,36 +30,169 @@ DUELO_XP_VITORIA = 30
 DUELO_XP_DERROTA = 10
 DUELO_XP_EMPATE  = 15
 DUELO_MAX_PENDENTES = 5  # máx. de duelos enviados aguardando resposta
+DUELO_TEMPO_REFERENCIA_SEG = 15  # tempo "ideal" por questão (referência visual)
+DUELO_APOSTA_MIN = 10
+DUELO_APOSTA_MAX = 200
+# --- Torneio ---
+TORNEIO_XP_CAMPEAO        = 100
+TORNEIO_XP_FINALISTA      = 50
+TORNEIO_XP_SEMIFINALISTA  = 25
 
 # --- CSS ---
 st.markdown("""
 <style>
-html, body, [class*="css"] { font-family: 'Trebuchet MS', sans-serif !important; background-color: #0A0A0C; }
-.premium-card { background: linear-gradient(145deg, #121216, #1A1A22); padding: 30px; border-radius: 16px; border: 1px solid #2A2A35; box-shadow: 0 8px 32px rgba(0,0,0,0.5); }
-.ranking-box { background: #111115; padding: 12px; border-radius: 12px; border-left: 4px solid lime; margin-bottom: 10px; border: 1px solid #222; }
-.badge-card { background:#111115; padding:14px; border-radius:12px; border:1px solid #2A2A35; margin-bottom:8px; text-align:center; }
-.badge-locked { opacity: 0.35; }
-.stat-box { background: linear-gradient(145deg, #121216, #1A1A22); padding:20px; border-radius:12px; border:1px solid #2A2A35; text-align:center; }
-.stat-num { font-size: 2rem; font-weight: 800; color: lime; }
-.stat-label { color:#8E8E93; font-size:0.85rem; text-transform: uppercase; letter-spacing: 1px; }
-.stButton>button { background-color: #111115; color: #FFFFFF; border: 2px solid lime; border-radius: 12px; font-weight: bold; height: 52px; width: 100%; transition: all 0.3s; }
-.stButton>button:hover { background-color: lime; color: #000000; box-shadow: 0 0 20px rgba(0, 255, 0, 0.5); transform: translateY(-2px); }
-.titulo-principal { font-size: 3rem; font-weight: 800; background: linear-gradient(90deg, #FFFFFF, #8E8E93); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-.subtitulo { color: #8E8E93; font-size: 1.05rem; }
-.tag-nivel { display:inline-block; padding:3px 10px; border-radius:12px; font-size:0.75rem; font-weight:bold; margin-left:8px; }
-.nivel-1 { background:#1B3A1B; color:#7CFC7C; border:1px solid #2D5A2D; }
-.nivel-2 { background:#3A2D1B; color:#FFC97C; border:1px solid #5A472D; }
-.nivel-3 { background:#3A1B1B; color:#FF7C7C; border:1px solid #5A2D2D; }
-.streak-fire { font-size:1.4rem; font-weight:bold; color:#FF8C00; }
-.explicacao { background:#0F1A0F; border-left:4px solid lime; padding:12px 16px; border-radius:8px; margin-top:10px; color:#CFE9CF; }
-.audio-btn { background:#111115; color:#FFF; border:2px solid lime; border-radius:8px; padding:6px 14px; font-weight:bold; cursor:pointer; font-size:0.9rem; }
+:root {
+    --primary: #10B981; --primary-light: #34D399; --primary-dark: #047857;
+    --accent: #F59E0B; --gold: #FCD34D;
+    --bg: #0B1014; --surface: #131A22; --surface-2: #1A2230;
+    --border: #1F2937; --border-light: #374151;
+    --text: #F1F5F9; --text-dim: #94A3B8; --text-muted: #64748B;
+    --danger: #F87171; --info: #60A5FA;
+}
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Sora:wght@600;700;800&display=swap');
+
+html, body, [class*="css"], .stApp, .main {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif !important;
+    background-color: var(--bg) !important;
+    color: var(--text) !important;
+}
+h1, h2, h3, h4 {
+    font-family: 'Sora', 'Inter', sans-serif !important;
+    color: var(--text) !important;
+    letter-spacing: -0.02em;
+}
+.premium-card { background: var(--surface); padding: 28px; border-radius: 16px; border: 1px solid var(--border); box-shadow: 0 4px 24px rgba(0,0,0,0.3); transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1); }
+.premium-card:hover { border-color: var(--border-light); }
+.ranking-box { background: var(--surface); padding: 14px 16px; border-radius: 12px; border-left: 3px solid var(--primary); margin-bottom: 10px; border-top: 1px solid var(--border); border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); transition: all 0.2s ease; }
+.ranking-box:hover { background: var(--surface-2); transform: translateX(2px); }
+.badge-card { background: var(--surface); padding: 16px 12px; border-radius: 14px; border: 1px solid var(--border); margin-bottom: 10px; text-align: center; transition: all 0.25s ease; }
+.badge-card:hover { border-color: var(--primary); transform: translateY(-2px); }
+.badge-locked { opacity: 0.3; filter: grayscale(0.8); }
+.stat-box { background: var(--surface); padding: 18px 12px; border-radius: 14px; border: 1px solid var(--border); text-align: center; transition: all 0.2s ease; }
+.stat-box:hover { border-color: var(--primary-light); }
+.stat-num { font-family: 'Sora', sans-serif; font-size: 1.9rem; font-weight: 800; color: var(--primary); line-height: 1.2; }
+.stat-label { color: var(--text-dim); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 1.2px; margin-top: 4px; font-weight: 600; }
+.stButton>button { background-color: var(--surface) !important; color: var(--text) !important; border: 1.5px solid var(--border-light) !important; border-radius: 12px !important; font-weight: 600 !important; font-family: 'Inter', sans-serif !important; height: 48px !important; width: 100% !important; transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important; }
+.stButton>button:hover { background-color: var(--primary) !important; color: white !important; border-color: var(--primary) !important; transform: translateY(-1px); box-shadow: 0 6px 20px rgba(16, 185, 129, 0.3); }
+.stButton>button:disabled { opacity: 0.4; cursor: not-allowed; }
+.titulo-principal { font-size: 3rem; font-weight: 800; background: linear-gradient(135deg, #F1F5F9 0%, #94A3B8 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; line-height: 1.1; margin: 8px 0; }
+.subtitulo { color: var(--text-dim); font-size: 1.05rem; }
+.destaque-lime { color: var(--primary); font-weight: 600; }
+.tag-nivel { display: inline-block; padding: 4px 12px; border-radius: 100px; font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
+.nivel-1 { background: rgba(16, 185, 129, 0.15); color: #6EE7B7; border: 1px solid rgba(16, 185, 129, 0.3); }
+.nivel-2 { background: rgba(245, 158, 11, 0.15); color: #FCD34D; border: 1px solid rgba(245, 158, 11, 0.3); }
+.nivel-3 { background: rgba(248, 113, 113, 0.15); color: #FCA5A5; border: 1px solid rgba(248, 113, 113, 0.3); }
+.streak-fire { font-size: 1.4rem; font-weight: 700; color: var(--accent); }
+.explicacao { background: rgba(16, 185, 129, 0.08); border-left: 3px solid var(--primary); border-radius: 0 10px 10px 0; padding: 14px 18px; margin-top: 14px; color: #D1FAE5; font-size: 0.96rem; line-height: 1.55; }
+.audio-btn { background: var(--surface); color: var(--primary-light); border: 1.5px solid var(--primary); border-radius: 10px; padding: 8px 16px; font-weight: 600; cursor: pointer; font-size: 0.92rem; font-family: 'Inter', sans-serif; transition: all 0.2s ease; }
+.audio-btn:hover { background: var(--primary); color: white; }
+.avatar { display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; color: white; font-weight: 700; font-family: 'Sora', sans-serif; flex-shrink: 0; box-shadow: 0 2px 8px rgba(0,0,0,0.3); }
+@keyframes float-xp { 0% { opacity: 0; transform: translateY(10px) scale(0.8); } 20% { opacity: 1; transform: translateY(-5px) scale(1.1); } 80% { opacity: 1; transform: translateY(-30px) scale(1); } 100% { opacity: 0; transform: translateY(-50px) scale(0.9); } }
+.xp-floating { display: inline-block; color: var(--gold); font-weight: 800; font-family: 'Sora', sans-serif; font-size: 1.5rem; animation: float-xp 1.8s cubic-bezier(0.4, 0, 0.2, 1) forwards; }
+@keyframes pop { 0% { transform: scale(0); opacity: 0; } 60% { transform: scale(1.15); opacity: 1; } 100% { transform: scale(1); opacity: 1; } }
+@keyframes fadeInUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+[data-testid="stExpander"] { background: var(--surface) !important; border: 1px solid var(--border) !important; border-radius: 14px !important; margin-bottom: 10px !important; transition: all 0.2s ease; }
+[data-testid="stExpander"]:hover { border-color: var(--primary) !important; box-shadow: 0 4px 16px rgba(16, 185, 129, 0.1); }
+.stTextInput input, .stTextArea textarea { background: var(--surface) !important; color: var(--text) !important; border: 1.5px solid var(--border-light) !important; border-radius: 10px !important; font-family: 'Inter', sans-serif !important; }
+.stTextInput input:focus, .stTextArea textarea:focus { border-color: var(--primary) !important; }
+.stRadio > label { color: var(--text-dim) !important; }
+.stProgress > div > div > div > div { background: var(--primary) !important; }
+.logo-wrap { display: flex; align-items: center; justify-content: center; gap: 14px; margin-bottom: 8px; }
+.logo-wrap svg { width: 64px; height: 64px; }
 @media (max-width: 768px) {
-    .titulo-principal { font-size: 2rem !important; }
+    .titulo-principal { font-size: 2.1rem !important; }
     .premium-card { padding: 18px !important; }
     .stat-num { font-size: 1.4rem !important; }
+    .logo-wrap svg { width: 48px; height: 48px; }
 }
+.fade-in { animation: fadeInUp 0.4s ease forwards; }
 </style>
 """, unsafe_allow_html=True)
+
+# --- IDENTIDADE VISUAL ---
+LOGO_SVG = """
+<svg viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg">
+  <circle cx="40" cy="40" r="38" fill="#10B981"/>
+  <circle cx="40" cy="40" r="38" fill="none" stroke="#FCD34D" stroke-width="2" opacity="0.6"/>
+  <ellipse cx="40" cy="50" rx="20" ry="14" fill="#F1F5F9"/>
+  <circle cx="28" cy="42" r="7" fill="#F1F5F9"/>
+  <circle cx="52" cy="42" rx="7" r="7" fill="#F1F5F9"/>
+  <circle cx="56" cy="48" r="5" fill="#F1F5F9"/>
+  <circle cx="24" cy="48" r="5" fill="#F1F5F9"/>
+  <ellipse cx="40" cy="34" rx="9" ry="11" fill="#1F2937"/>
+  <ellipse cx="30" cy="29" rx="3" ry="5" fill="#1F2937"/>
+  <ellipse cx="50" cy="29" rx="3" ry="5" fill="#1F2937"/>
+  <circle cx="36" cy="34" r="1.8" fill="#FCD34D"/>
+  <circle cx="44" cy="34" r="1.8" fill="#FCD34D"/>
+  <ellipse cx="40" cy="40" rx="2.2" ry="1.5" fill="#F1F5F9"/>
+  <rect x="32" y="59" width="3" height="6" rx="1" fill="#1F2937"/>
+  <rect x="45" y="59" width="3" height="6" rx="1" fill="#1F2937"/>
+</svg>
+"""
+
+MODULO_ICONES = {
+    "Módulo 1":  "📝", "Módulo 2":  "📝", "Módulo 3":  "📝", "Módulo 4":  "📝",
+    "Módulo 5":  "📅", "Módulo 6":  "🔢", "Módulo 7":  "🎨", "Módulo 8":  "⛪",
+    "Módulo 9":  "👋", "Módulo 10": "👥", "Módulo 11": "🔑", "Módulo 12": "👨‍👩‍👧",
+    "Módulo 13": "🍞", "Módulo 14": "🫀", "Módulo 15": "📅", "Módulo 16": "☁️",
+    "Módulo 17": "❓", "Módulo 18": "🏃", "Módulo 19": "🙏", "Módulo 20": "✝️",
+    "Módulo 21": "🎵", "Módulo 22": "📍",
+}
+
+def icone_modulo(titulo):
+    for prefix, icon in MODULO_ICONES.items():
+        if titulo.startswith(prefix + ":") or titulo.startswith(prefix + " "):
+            return icon
+    return "📦"
+
+# --- AVATARES ---
+PALETA_AVATAR = [
+    "#10B981", "#F59E0B", "#8B5CF6", "#EC4899",
+    "#3B82F6", "#EF4444", "#14B8A6", "#F97316",
+    "#6366F1", "#84CC16", "#06B6D4", "#A855F7",
+]
+
+# --- NÍVEIS ---
+NIVEIS = [
+    (0,    "🌱 Iniciante"),
+    (100,  "📚 Aprendiz"),
+    (300,  "✍️ Estudante"),
+    (700,  "🎓 Avançado"),
+    (1500, "🏆 Mestre"),
+    (3000, "👑 Sábio"),
+    (6000, "⭐ Lenda"),
+]
+
+def info_nivel(xp):
+    """Retorna (nivel_idx, nome, xp_atual_no_nivel, xp_proximo_nivel) para um XP."""
+    xp = xp or 0
+    nivel_idx = 0
+    for i, (limite, nome) in enumerate(NIVEIS):
+        if xp >= limite:
+            nivel_idx = i
+    nome_atual = NIVEIS[nivel_idx][1]
+    if nivel_idx + 1 < len(NIVEIS):
+        proximo = NIVEIS[nivel_idx + 1][0]
+        atual_inicio = NIVEIS[nivel_idx][0]
+        return (nivel_idx, nome_atual, xp - atual_inicio, proximo - atual_inicio)
+    return (nivel_idx, nome_atual, 1, 1)  # nível máximo
+
+def avatar_iniciais(nome):
+    partes = (nome or "?").strip().split()
+    if len(partes) >= 2 and len(partes[0]) > 0 and len(partes[-1]) > 0:
+        return (partes[0][0] + partes[-1][0]).upper()
+    return (partes[0][:2] if partes and partes[0] else "?").upper()
+
+def cor_avatar(nome):
+    h = hashlib.md5((nome or "?").encode("utf-8")).hexdigest()
+    return PALETA_AVATAR[int(h, 16) % len(PALETA_AVATAR)]
+
+def render_avatar(nome, tamanho=38):
+    ini = avatar_iniciais(nome)
+    cor = cor_avatar(nome)
+    fonte = int(tamanho * 0.42)
+    return (f"<span class='avatar' style='width:{tamanho}px;height:{tamanho}px;"
+            f"background:{cor};font-size:{fonte}px;'>{ini}</span>")
 
 # --- HELPERS DE BANCO ---
 def conectar():
@@ -99,13 +233,20 @@ def botao_audio(texto: str, label: str = "🔊"):
 
 def exibir_ranking():
     st.markdown("#### 🏆 TOP 5")
-    rows = consultar("SELECT nome, xp_total, streak FROM alunos WHERE nome != ? ORDER BY xp_total DESC LIMIT 5", (PROFESSOR_NOME,))
+    rows = consultar("SELECT id, nome, xp_total, streak FROM alunos WHERE nome != ? ORDER BY xp_total DESC LIMIT 5", (PROFESSOR_NOME,))
     if not rows:
         st.caption("Ainda sem alunos cadastrados.")
-    for r in rows:
-        nome, xp, streak = r
-        fire = f" 🔥{streak}" if streak and streak > 0 else ""
-        st.markdown(f"<div class='ranking-box'><b>{nome}</b>{fire}<br><span style='color:lime;'>{xp} XP</span></div>", unsafe_allow_html=True)
+    medalhas = ["🥇", "🥈", "🥉", "", ""]
+    for i, r in enumerate(rows):
+        rid, nome, xp, streak = r
+        fire = f" <span style='color:#F59E0B;font-weight:600;'>🔥{streak}</span>" if streak and streak > 0 else ""
+        med = medalhas[i] if i < len(medalhas) else ""
+        st.markdown(
+            f"<div class='ranking-box' style='display:flex;align-items:center;gap:12px;'>"
+            f"{render_avatar(nome, 36)}"
+            f"<div style='flex:1;'><b>{med} {nome}</b>{fire}<br>"
+            f"<span style='color:var(--primary);font-weight:600;'>{xp} XP</span></div>"
+            f"</div>", unsafe_allow_html=True)
 
 # --- CONQUISTAS ---
 BADGES = {
@@ -124,6 +265,14 @@ BADGES = {
     "mestre":          ("👑", "Mestre", "Alcance 5000 XP"),
     "polyglot":        ("🎓", "Polyglot", "Complete 10 módulos"),
     "perfeccionista":  ("🎯", "Perfeccionista", "Termine uma lição sem errar"),
+    # --- Duelos ---
+    "primeira_vitoria":("🥊", "Primeira Vitória", "Vença seu primeiro duelo"),
+    "tres_seguidas":   ("🔥", "Pegando Fogo", "3 vitórias seguidas em duelos"),
+    "cinco_seguidas":  ("⚡", "Imparável", "5 vitórias seguidas em duelos"),
+    "dez_vitorias":    ("🎖️", "Veterano", "10 vitórias em duelos"),
+    "rei_duelo":       ("👑", "Rei dos Duelos", "50 vitórias em duelos"),
+    # --- Torneio ---
+    "campeao_torneio": ("🏆", "Campeão", "Vença um torneio"),
 }
 
 MODULO_BADGE = {
@@ -144,10 +293,12 @@ def conceder_conquista(uid, badge_id):
 def verificar_conquistas(uid):
     """Verifica e concede conquistas elegíveis. Retorna lista de novas conquistas."""
     novas = []
-    aluno = consultar_um("SELECT xp_total, streak FROM alunos WHERE id = ?", (uid,))
+    aluno = consultar_um("SELECT xp_total, streak, vitorias_duelo, melhor_streak_vitorias_duelo FROM alunos WHERE id = ?", (uid,))
     if not aluno:
         return novas
-    xp, streak = aluno
+    xp, streak, vit_duelo, melhor_streak_v = aluno
+    vit_duelo = vit_duelo or 0
+    melhor_streak_v = melhor_streak_v or 0
     licoes_feitas = consultar_um("SELECT COUNT(*) FROM progresso WHERE aluno_id = ?", (uid,))[0]
 
     checks = [
@@ -160,6 +311,12 @@ def verificar_conquistas(uid):
         (xp >= 100, "decolagem"),
         (xp >= 1000, "avancado"),
         (xp >= 5000, "mestre"),
+        # Duelo
+        (vit_duelo >= 1, "primeira_vitoria"),
+        (melhor_streak_v >= 3, "tres_seguidas"),
+        (melhor_streak_v >= 5, "cinco_seguidas"),
+        (vit_duelo >= 10, "dez_vitorias"),
+        (vit_duelo >= 50, "rei_duelo"),
     ]
     for ok, badge in checks:
         if ok and conceder_conquista(uid, badge):
@@ -176,6 +333,11 @@ def verificar_conquistas(uid):
     """, (uid,))
     if len(modulos_completos) >= 10 and conceder_conquista(uid, "polyglot"):
         novas.append("polyglot")
+
+    # Campeão de torneio: já tem algum torneio onde ele venceu?
+    venceu_torneio = consultar_um("SELECT 1 FROM torneios WHERE campeao_id = ? AND status = 'finalizado'", (uid,))
+    if venceu_torneio and conceder_conquista(uid, "campeao_torneio"):
+        novas.append("campeao_torneio")
     return novas
 
 def conceder_badge_modulo(uid, modulo_titulo):
@@ -302,60 +464,289 @@ def duelos_finalizados(uid, limite=10):
         LIMIT ?
     """, (uid, uid, uid, uid, uid, limite))
 
-def criar_duelo(desafiante_id, desafiado_id, questoes_ids, score):
+def criar_duelo(desafiante_id, desafiado_id, questoes_ids, score, xp_apostado=None,
+                tempo_desafiante=None, torneio_partida_id=None):
+    """
+    Cria um duelo no banco. Se xp_apostado for setado, debita o XP do desafiante imediatamente.
+    torneio_partida_id liga este duelo a uma partida de torneio (opcional).
+    """
+    if xp_apostado:
+        executar("UPDATE alunos SET xp_total = xp_total - ? WHERE id = ?", (xp_apostado, desafiante_id))
     return executar("""
         INSERT INTO duelos (desafiante_id, desafiado_id, questoes_ids,
-                            score_desafiante, status, criado_em)
-        VALUES (?,?,?,?,?,?)
+                            score_desafiante, status, criado_em,
+                            xp_apostado, tempo_desafiante, torneio_partida_id)
+        VALUES (?,?,?,?,?,?,?,?,?)
     """, (desafiante_id, desafiado_id, json.dumps(questoes_ids),
-          score, 'aguardando_desafiado', datetime.now().isoformat(timespec='seconds')))
+          score, 'aguardando_desafiado', datetime.now().isoformat(timespec='seconds'),
+          xp_apostado, tempo_desafiante, torneio_partida_id))
 
-def finalizar_duelo(duelo_id, score_desafiado):
-    """Salva o score do desafiado, calcula vencedor e distribui XP."""
-    d = consultar_um("SELECT desafiante_id, desafiado_id, score_desafiante FROM duelos WHERE id = ?", (duelo_id,))
+def atualizar_streak_vitorias(uid, venceu):
+    """Atualiza streak de vitórias em duelo. venceu=True incrementa, False/None reseta."""
+    aluno = consultar_um("SELECT streak_vitorias_duelo, melhor_streak_vitorias_duelo FROM alunos WHERE id = ?", (uid,))
+    if not aluno: return
+    atual, melhor = aluno[0] or 0, aluno[1] or 0
+    if venceu:
+        atual += 1
+        melhor = max(melhor, atual)
+    else:
+        atual = 0
+    executar("UPDATE alunos SET streak_vitorias_duelo = ?, melhor_streak_vitorias_duelo = ? WHERE id = ?",
+             (atual, melhor, uid))
+
+def finalizar_duelo(duelo_id, score_desafiado, tempo_desafiado=None):
+    """Salva o score do desafiado, calcula vencedor (com desempate por tempo se houver aposta/torneio)
+    e distribui XP (incluindo aposta se aplicável)."""
+    d = consultar_um("""SELECT desafiante_id, desafiado_id, score_desafiante, xp_apostado,
+                               tempo_desafiante, torneio_partida_id
+                        FROM duelos WHERE id = ?""", (duelo_id,))
     if not d:
         return None
-    desafiante_id, desafiado_id, score_des = d
+    desafiante_id, desafiado_id, score_des, xp_apostado, tempo_des, torneio_partida_id = d
+
+    # Decidir vencedor
     if score_desafiado > score_des:
         vencedor = desafiado_id
     elif score_des > score_desafiado:
         vencedor = desafiante_id
     else:
-        vencedor = None
-    executar("""UPDATE duelos SET score_desafiado = ?, vencedor_id = ?, status = ?, atualizado_em = ?
+        # EMPATE: desempata por tempo se ambos foram cronometrados (torneio sempre cronometra)
+        if tempo_des is not None and tempo_desafiado is not None:
+            if tempo_desafiado < tempo_des:
+                vencedor = desafiado_id  # foi mais rápido
+            elif tempo_des < tempo_desafiado:
+                vencedor = desafiante_id
+            else:
+                vencedor = None  # mesmo score E mesmo tempo: empate real
+        else:
+            vencedor = None
+
+    # Em torneio, NÃO pode ter empate - sorteia se necessário
+    if torneio_partida_id and vencedor is None:
+        vencedor = random.choice([desafiante_id, desafiado_id])
+
+    executar("""UPDATE duelos SET score_desafiado = ?, vencedor_id = ?, status = ?,
+                                  atualizado_em = ?, tempo_desafiado = ?
                 WHERE id = ?""",
              (score_desafiado, vencedor, 'finalizado',
-              datetime.now().isoformat(timespec='seconds'), duelo_id))
+              datetime.now().isoformat(timespec='seconds'), tempo_desafiado, duelo_id))
 
-    if vencedor is None:  # empate
-        executar("UPDATE alunos SET xp_total = xp_total + ?, empates_duelo = empates_duelo + 1 WHERE id = ?",
-                 (DUELO_XP_EMPATE, desafiante_id))
-        executar("UPDATE alunos SET xp_total = xp_total + ?, empates_duelo = empates_duelo + 1 WHERE id = ?",
-                 (DUELO_XP_EMPATE, desafiado_id))
+    # Distribuição de XP
+    if xp_apostado:
+        # Desafiado também precisa apostar (já foi debitado ao aceitar)
+        # Vencedor leva 2x. Empate: cada um recebe de volta o seu.
+        if vencedor is None:
+            executar("UPDATE alunos SET xp_total = xp_total + ?, empates_duelo = empates_duelo + 1 WHERE id = ?",
+                     (xp_apostado, desafiante_id))
+            executar("UPDATE alunos SET xp_total = xp_total + ?, empates_duelo = empates_duelo + 1 WHERE id = ?",
+                     (xp_apostado, desafiado_id))
+            atualizar_streak_vitorias(desafiante_id, False)
+            atualizar_streak_vitorias(desafiado_id, False)
+        else:
+            perdedor = desafiante_id if vencedor == desafiado_id else desafiado_id
+            executar("UPDATE alunos SET xp_total = xp_total + ?, vitorias_duelo = vitorias_duelo + 1 WHERE id = ?",
+                     (2 * xp_apostado, vencedor))
+            executar("UPDATE alunos SET derrotas_duelo = derrotas_duelo + 1 WHERE id = ?", (perdedor,))
+            atualizar_streak_vitorias(vencedor, True)
+            atualizar_streak_vitorias(perdedor, False)
     else:
+        # XP padrão
+        if vencedor is None:
+            executar("UPDATE alunos SET xp_total = xp_total + ?, empates_duelo = empates_duelo + 1 WHERE id = ?",
+                     (DUELO_XP_EMPATE, desafiante_id))
+            executar("UPDATE alunos SET xp_total = xp_total + ?, empates_duelo = empates_duelo + 1 WHERE id = ?",
+                     (DUELO_XP_EMPATE, desafiado_id))
+            atualizar_streak_vitorias(desafiante_id, False)
+            atualizar_streak_vitorias(desafiado_id, False)
+        else:
+            perdedor = desafiante_id if vencedor == desafiado_id else desafiado_id
+            executar("UPDATE alunos SET xp_total = xp_total + ?, vitorias_duelo = vitorias_duelo + 1 WHERE id = ?",
+                     (DUELO_XP_VITORIA, vencedor))
+            executar("UPDATE alunos SET xp_total = xp_total + ?, derrotas_duelo = derrotas_duelo + 1 WHERE id = ?",
+                     (DUELO_XP_DERROTA, perdedor))
+            atualizar_streak_vitorias(vencedor, True)
+            atualizar_streak_vitorias(perdedor, False)
+
+    # Se for partida de torneio, avança o vencedor
+    if torneio_partida_id and vencedor:
         perdedor = desafiante_id if vencedor == desafiado_id else desafiado_id
-        executar("UPDATE alunos SET xp_total = xp_total + ?, vitorias_duelo = vitorias_duelo + 1 WHERE id = ?",
-                 (DUELO_XP_VITORIA, vencedor))
-        executar("UPDATE alunos SET xp_total = xp_total + ?, derrotas_duelo = derrotas_duelo + 1 WHERE id = ?",
-                 (DUELO_XP_DERROTA, perdedor))
+        avancar_no_torneio(torneio_partida_id, vencedor, perdedor)
+
     return vencedor
 
 def cancelar_duelo(duelo_id, uid):
-    """Permite cancelar um duelo enviado que ninguém respondeu ainda."""
-    d = consultar_um("SELECT desafiante_id, status FROM duelos WHERE id = ?", (duelo_id,))
+    """Permite cancelar um duelo enviado que ninguém respondeu ainda.
+    Devolve o XP apostado se houver."""
+    d = consultar_um("SELECT desafiante_id, status, xp_apostado, torneio_partida_id FROM duelos WHERE id = ?", (duelo_id,))
     if not d:
         return False
     if d[0] != uid or d[1] != 'aguardando_desafiado':
-        return False  # só o desafiante e só se ainda não foi respondido
+        return False
+    if d[3] is not None:  # parte de torneio: não pode cancelar
+        return False
+    # Devolve XP apostado se houver
+    if d[2]:
+        executar("UPDATE alunos SET xp_total = xp_total + ? WHERE id = ?", (d[2], uid))
     executar("DELETE FROM duelos WHERE id = ?", (duelo_id,))
     return True
 
 def carregar_duelo(duelo_id):
     return consultar_um("""
         SELECT id, desafiante_id, desafiado_id, questoes_ids,
-               score_desafiante, score_desafiado, vencedor_id, status, criado_em, atualizado_em
+               score_desafiante, score_desafiado, vencedor_id, status, criado_em, atualizado_em,
+               xp_apostado, tempo_desafiante, tempo_desafiado, torneio_partida_id
         FROM duelos WHERE id = ?
     """, (duelo_id,))
+
+# --- TORNEIOS ---
+def criar_torneio(nome, nivel, participantes_ids):
+    """Cria torneio e gera bracket completo. Funciona com 4 ou 8 jogadores."""
+    n = len(participantes_ids)
+    if n not in (4, 8):
+        return None
+    torneio_id = executar("""INSERT INTO torneios (nome, nivel, tamanho, status, criado_em)
+                             VALUES (?,?,?,?,?)""",
+                          (nome, nivel, n, 'em_andamento',
+                           datetime.now().isoformat(timespec='seconds')))
+    participantes = participantes_ids[:]
+    random.shuffle(participantes)
+    total_rodadas = 2 if n == 4 else 3
+
+    # Cria todas as partidas. Primeiro a primeira rodada (com jogadores), depois as outras.
+    partidas_por_rodada = []
+    rodada_1 = []
+    for i in range(0, n, 2):
+        pid = executar("""INSERT INTO torneio_partidas (torneio_id, rodada, posicao, jogador1_id, jogador2_id)
+                          VALUES (?,?,?,?,?)""",
+                       (torneio_id, 1, i // 2, participantes[i], participantes[i+1]))
+        rodada_1.append(pid)
+    partidas_por_rodada.append(rodada_1)
+
+    # Demais rodadas: cria partidas vazias e linka via proxima_partida_id
+    rodada_anterior = rodada_1
+    for r in range(2, total_rodadas + 1):
+        nova = []
+        for i in range(0, len(rodada_anterior), 2):
+            pid = executar("""INSERT INTO torneio_partidas (torneio_id, rodada, posicao)
+                              VALUES (?,?,?)""", (torneio_id, r, i // 2))
+            executar("UPDATE torneio_partidas SET proxima_partida_id = ? WHERE id = ? OR id = ?",
+                     (pid, rodada_anterior[i], rodada_anterior[i+1]))
+            nova.append(pid)
+        partidas_por_rodada.append(nova)
+        rodada_anterior = nova
+    return torneio_id
+
+def avancar_no_torneio(partida_id, vencedor_id, perdedor_id):
+    """Marca vencedor da partida, distribui XP do torneio, e move vencedor para próxima partida."""
+    executar("UPDATE torneio_partidas SET vencedor_id = ? WHERE id = ?", (vencedor_id, partida_id))
+    p = consultar_um("SELECT torneio_id, rodada, proxima_partida_id FROM torneio_partidas WHERE id = ?", (partida_id,))
+    torneio_id, rodada, proxima = p
+    t = consultar_um("SELECT tamanho FROM torneios WHERE id = ?", (torneio_id,))[0]
+    total_rodadas = 2 if t == 4 else 3
+
+    # XP do perdedor segundo a rodada
+    if rodada == total_rodadas:  # perdeu a final → vice-campeão
+        executar("UPDATE alunos SET xp_total = xp_total + ? WHERE id = ?", (TORNEIO_XP_FINALISTA, perdedor_id))
+    elif rodada == total_rodadas - 1:  # perdeu na semifinal
+        executar("UPDATE alunos SET xp_total = xp_total + ? WHERE id = ?", (TORNEIO_XP_SEMIFINALISTA, perdedor_id))
+
+    if not proxima:
+        # Era a final! Vencedor é campeão.
+        executar("""UPDATE torneios SET campeao_id = ?, status = 'finalizado', finalizado_em = ?
+                    WHERE id = ?""",
+                 (vencedor_id, datetime.now().isoformat(timespec='seconds'), torneio_id))
+        executar("UPDATE alunos SET xp_total = xp_total + ? WHERE id = ?", (TORNEIO_XP_CAMPEAO, vencedor_id))
+    else:
+        # Colocar vencedor na próxima partida (jogador1 ou jogador2)
+        prox = consultar_um("SELECT jogador1_id, jogador2_id FROM torneio_partidas WHERE id = ?", (proxima,))
+        if prox[0] is None:
+            executar("UPDATE torneio_partidas SET jogador1_id = ? WHERE id = ?", (vencedor_id, proxima))
+        else:
+            executar("UPDATE torneio_partidas SET jogador2_id = ? WHERE id = ?", (vencedor_id, proxima))
+
+def listar_torneios(status=None):
+    if status:
+        return consultar("SELECT id, nome, nivel, tamanho, status, campeao_id, criado_em FROM torneios WHERE status = ? ORDER BY id DESC", (status,))
+    return consultar("SELECT id, nome, nivel, tamanho, status, campeao_id, criado_em FROM torneios ORDER BY id DESC LIMIT 20")
+
+def partidas_pendentes_do_aluno(uid):
+    """Retorna partidas de torneio onde o aluno é jogador1 ou jogador2, ainda não jogadas,
+    com ambos os jogadores já definidos. Inclui partidas onde o oponente já jogou e
+    está aguardando você responder."""
+    return consultar("""
+        SELECT tp.id, t.nome, tp.torneio_id, tp.rodada,
+               tp.jogador1_id, tp.jogador2_id,
+               (SELECT nome FROM alunos WHERE id = tp.jogador1_id) AS j1_nome,
+               (SELECT nome FROM alunos WHERE id = tp.jogador2_id) AS j2_nome
+        FROM torneio_partidas tp
+        JOIN torneios t ON t.id = tp.torneio_id
+        WHERE t.status = 'em_andamento'
+          AND tp.vencedor_id IS NULL
+          AND tp.jogador1_id IS NOT NULL
+          AND tp.jogador2_id IS NOT NULL
+          AND (tp.jogador1_id = ? OR tp.jogador2_id = ?)
+          AND (
+              tp.duelo_id IS NULL
+              OR EXISTS (
+                  SELECT 1 FROM duelos d
+                  WHERE d.id = tp.duelo_id
+                    AND d.status = 'aguardando_desafiado'
+                    AND d.desafiante_id != ?
+              )
+          )
+    """, (uid, uid, uid))
+
+def estado_torneio(torneio_id):
+    """Retorna toda a estrutura do torneio: torneio + lista de partidas em ordem (rodada, posição)."""
+    t = consultar_um("SELECT id, nome, nivel, tamanho, status, campeao_id, criado_em, finalizado_em FROM torneios WHERE id = ?", (torneio_id,))
+    if not t: return None, []
+    partidas = consultar("""
+        SELECT tp.id, tp.rodada, tp.posicao, tp.jogador1_id, tp.jogador2_id, tp.vencedor_id, tp.duelo_id,
+               (SELECT nome FROM alunos WHERE id = tp.jogador1_id),
+               (SELECT nome FROM alunos WHERE id = tp.jogador2_id),
+               (SELECT nome FROM alunos WHERE id = tp.vencedor_id)
+        FROM torneio_partidas tp
+        WHERE tp.torneio_id = ?
+        ORDER BY tp.rodada, tp.posicao
+    """, (torneio_id,))
+    return t, partidas
+
+# --- DESAFIO DIÁRIO ---
+DESAFIO_XP_BONUS = 25
+
+def obter_ou_gerar_desafio_diario(uid):
+    """Retorna a lição do desafio diário de hoje pro aluno. Gera se ainda não tiver."""
+    hoje = date.today().isoformat()
+    existente = consultar_um(
+        "SELECT licao_id, completado FROM desafios_diarios WHERE aluno_id = ? AND data = ?",
+        (uid, hoje)
+    )
+    if existente:
+        return existente[0], bool(existente[1])
+    # Gerar novo: sorteio determinístico por aluno+data
+    seed_str = f"{uid}-{hoje}"
+    seed_int = int(hashlib.md5(seed_str.encode()).hexdigest(), 16)
+    licoes = consultar("""
+        SELECT l.id FROM licoes l
+        JOIN modulos m ON m.id = l.modulo_id
+        WHERE m.nivel <= 2
+        ORDER BY l.id
+    """)
+    if not licoes:
+        return None, False
+    lic_id = licoes[seed_int % len(licoes)][0]
+    executar(
+        "INSERT INTO desafios_diarios (aluno_id, data, licao_id, completado) VALUES (?,?,?,0)",
+        (uid, hoje, lic_id)
+    )
+    return lic_id, False
+
+def marcar_desafio_completado(uid):
+    hoje = date.today().isoformat()
+    executar(
+        "UPDATE desafios_diarios SET completado = 1 WHERE aluno_id = ? AND data = ?",
+        (uid, hoje)
+    )
 
 # =========================================================
 # TRILHA DE APRENDIZADO
@@ -698,6 +1089,34 @@ def iniciar_banco():
         criado_em TEXT NOT NULL,
         atualizado_em TEXT
     )''')
+    cur.execute('''CREATE TABLE IF NOT EXISTS torneios (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        nome TEXT NOT NULL,
+        nivel INTEGER NOT NULL,
+        tamanho INTEGER NOT NULL,
+        status TEXT NOT NULL,
+        campeao_id INTEGER,
+        criado_em TEXT NOT NULL,
+        finalizado_em TEXT
+    )''')
+    cur.execute('''CREATE TABLE IF NOT EXISTS torneio_partidas (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        torneio_id INTEGER NOT NULL,
+        rodada INTEGER NOT NULL,
+        posicao INTEGER NOT NULL,
+        jogador1_id INTEGER,
+        jogador2_id INTEGER,
+        duelo_id INTEGER,
+        vencedor_id INTEGER,
+        proxima_partida_id INTEGER
+    )''')
+    cur.execute('''CREATE TABLE IF NOT EXISTS desafios_diarios (
+        aluno_id INTEGER NOT NULL,
+        data TEXT NOT NULL,
+        licao_id INTEGER,
+        completado INTEGER DEFAULT 0,
+        PRIMARY KEY (aluno_id, data)
+    )''')
 
     # MIGRAÇÕES: tenta adicionar colunas novas se o banco for antigo
     for tabela, coluna, tipo, default in [
@@ -709,9 +1128,15 @@ def iniciar_banco():
         ("alunos", "vitorias_duelo", "INTEGER", 0),
         ("alunos", "derrotas_duelo", "INTEGER", 0),
         ("alunos", "empates_duelo", "INTEGER", 0),
+        ("alunos", "streak_vitorias_duelo", "INTEGER", 0),
+        ("alunos", "melhor_streak_vitorias_duelo", "INTEGER", 0),
         ("modulos", "nivel", "INTEGER", 1),
         ("licoes", "opcao_4", "TEXT", None),
         ("licoes", "explicacao", "TEXT", None),
+        ("duelos", "xp_apostado", "INTEGER", None),
+        ("duelos", "tempo_desafiante", "REAL", None),
+        ("duelos", "tempo_desafiado", "REAL", None),
+        ("duelos", "torneio_partida_id", "INTEGER", None),
     ]:
         try:
             if default is not None:
@@ -748,7 +1173,10 @@ for k, v in [("tela", "login"), ("vidas", 3), ("respondido", False),
              ("opcoes_atuais", []), ("erros_na_licao", 0),
              ("modo_revisao", False), ("login_etapa", "nome"),
              ("duelo_id", None), ("duelo_modo", None), ("duelo_score", 0),
-             ("duelo_questoes", []), ("duelo_idx", 0)]:
+             ("duelo_questoes", []), ("duelo_idx", 0),
+             ("duelo_iniciado_em", None), ("duelo_aposta", None),
+             ("duelo_torneio_partida_id", None),
+             ("modo_desafio_diario", False), ("onboarding_slide", 0)]:
     if k not in st.session_state:
         st.session_state[k] = v
 
@@ -759,11 +1187,15 @@ def reset_para_inicio():
     st.session_state.opcoes_atuais = []
     st.session_state.erros_na_licao = 0
     st.session_state.modo_revisao = False
+    st.session_state.modo_desafio_diario = False
     st.session_state.duelo_id = None
     st.session_state.duelo_modo = None
     st.session_state.duelo_score = 0
     st.session_state.duelo_questoes = []
     st.session_state.duelo_idx = 0
+    st.session_state.duelo_iniciado_em = None
+    st.session_state.duelo_aposta = None
+    st.session_state.duelo_torneio_partida_id = None
 
 # --- Funções auxiliares da tela de lição ---
 def processar_resposta(resp, correta, lic_id, explicacao, forcar=None):
@@ -774,22 +1206,39 @@ def processar_resposta(resp, correta, lic_id, explicacao, forcar=None):
     else:
         acertou = forcar
     if acertou:
-        xp_ganho = XP_REVISAO if st.session_state.modo_revisao else XP_POR_ACERTO
-        st.session_state.feedback = f"✅ Correto! +{xp_ganho} XP"
+        if st.session_state.get("modo_desafio_diario"):
+            xp_ganho = DESAFIO_XP_BONUS
+        else:
+            xp_ganho = XP_REVISAO if st.session_state.modo_revisao else XP_POR_ACERTO
+        st.session_state.feedback_acerto = True
+        st.session_state.feedback_xp = xp_ganho
+        st.session_state.feedback = f"✅ Correto!"
         executar("UPDATE alunos SET xp_total = xp_total + ? WHERE id = ?", (xp_ganho, uid))
-        if not st.session_state.modo_revisao:
+        if not st.session_state.modo_revisao and not st.session_state.get("modo_desafio_diario"):
             executar("INSERT OR IGNORE INTO progresso VALUES (?,?)", (uid, lic_id))
         if st.session_state.modo_revisao:
             executar("UPDATE erros SET count = MAX(count - 1, 0) WHERE aluno_id = ? AND licao_id = ?", (uid, lic_id))
+        if st.session_state.get("modo_desafio_diario"):
+            marcar_desafio_completado(uid)
     else:
         st.session_state.vidas -= 1
         st.session_state.erros_na_licao += 1
+        st.session_state.feedback_acerto = False
         st.session_state.feedback = f"❌ Não foi dessa vez. Resposta correta: **{correta}**"
         registrar_erro(uid, lic_id)
     st.session_state.respondido = True
 
 def mostrar_feedback(correta, explicacao):
-    st.markdown(st.session_state.feedback)
+    if st.session_state.get("feedback_acerto"):
+        xp_ganho = st.session_state.get("feedback_xp", 10)
+        st.markdown(
+            f"<div style='display:flex;align-items:center;gap:14px;'>"
+            f"<span style='font-size:1.6rem;'>✅</span>"
+            f"<span style='font-size:1.2rem;font-weight:600;color:var(--primary-light);'>Correto!</span>"
+            f"<span class='xp-floating'>+{xp_ganho} XP</span>"
+            f"</div>", unsafe_allow_html=True)
+    else:
+        st.markdown(st.session_state.feedback)
     botao_audio(correta, "🔊 Ouvir a resposta correta")
     if explicacao:
         st.markdown(f"<div class='explicacao'>💡 <b>Dica:</b> {explicacao}</div>", unsafe_allow_html=True)
@@ -825,6 +1274,94 @@ def botao_proxima(trilha, idx):
             st.rerun()
 
 # =========================================================
+# SIDEBAR DE NAVEGAÇÃO (renderiza em todas as telas exceto login/onboarding)
+# =========================================================
+def render_sidebar():
+    """Renderiza menu lateral de navegação. Só pra alunos logados."""
+    if st.session_state.tela in ("login", "onboarding") or "uid" not in st.session_state:
+        return
+    uid = st.session_state.uid
+    eh_professor = st.session_state.get("aluno") == "Professor"
+
+    with st.sidebar:
+        if eh_professor:
+            st.markdown(
+                f"<div style='display:flex;align-items:center;gap:12px;padding:8px 0 16px;'>"
+                f"<div style='font-size:2.4rem;'>👨‍🏫</div>"
+                f"<div><b style='color:var(--text);'>Professor</b><br>"
+                f"<small style='color:var(--text-dim);'>Painel admin</small></div></div>",
+                unsafe_allow_html=True
+            )
+            st.markdown("<hr style='border-color:var(--border);margin:4px 0 12px;'>", unsafe_allow_html=True)
+            if st.button("🚪 Sair do painel", use_container_width=True, key="sb_sair_admin"):
+                for k in ["tela", "aluno", "uid"]:
+                    if k in st.session_state: del st.session_state[k]
+                st.session_state.tela = "login"; st.rerun()
+            return
+
+        # Info do aluno
+        aluno_data = consultar_um("SELECT xp_total, streak FROM alunos WHERE id = ?", (uid,))
+        xp_a, streak_a = aluno_data if aluno_data else (0, 0)
+        nome_aluno = st.session_state.get("aluno", "?")
+        _, nivel_nome, xp_no_nivel, xp_pro_proximo = info_nivel(xp_a)
+        pct_nivel = int(100 * xp_no_nivel / xp_pro_proximo) if xp_pro_proximo else 100
+        fire = f" 🔥{streak_a}" if streak_a and streak_a > 0 else ""
+
+        st.markdown(
+            f"<div style='display:flex;align-items:center;gap:12px;padding:8px 0 12px;'>"
+            f"{render_avatar(nome_aluno, 44)}"
+            f"<div style='flex:1;min-width:0;'>"
+            f"<b style='color:var(--text);'>{nome_aluno}</b>{fire}<br>"
+            f"<small style='color:var(--text-dim);'>{nivel_nome}</small>"
+            f"</div></div>"
+            f"<div style='background:var(--border);height:6px;border-radius:3px;overflow:hidden;margin-bottom:4px;'>"
+            f"<div style='background:var(--primary);height:100%;width:{pct_nivel}%;transition:width 0.5s;'></div></div>"
+            f"<div style='font-size:0.75rem;color:var(--text-muted);margin-bottom:14px;'>"
+            f"{xp_no_nivel}/{xp_pro_proximo} XP pro próximo nível</div>",
+            unsafe_allow_html=True
+        )
+
+        # Notificações
+        n_duelos = len(duelos_pendentes_para_responder(uid))
+        n_torneios = len(partidas_pendentes_do_aluno(uid))
+
+        # Navegação
+        if st.button("🏠 Trilha", use_container_width=True, key="sb_tri"):
+            reset_para_inicio(); st.rerun()
+        if st.button("🧠 Revisão", use_container_width=True, key="sb_rev"):
+            revisao = obter_revisao_inteligente(uid, n=10)
+            if not revisao:
+                st.toast("Faça uma lição primeiro pra liberar a revisão.")
+            else:
+                st.session_state.trilha = revisao
+                st.session_state.idx = 0
+                st.session_state.vidas = 3
+                st.session_state.respondido = False
+                st.session_state.opcoes_atuais = []
+                st.session_state.modo_revisao = True
+                st.session_state.tela = "licao"
+                st.rerun()
+        dlabel = f"🥊 Duelos ({n_duelos})" if n_duelos else "🥊 Duelos"
+        if st.button(dlabel, use_container_width=True, key="sb_due"):
+            st.session_state.tela = "duelo_lobby"; st.rerun()
+        tlabel = f"🏆 Torneios ({n_torneios})" if n_torneios else "🏆 Torneios"
+        if st.button(tlabel, use_container_width=True, key="sb_tor"):
+            st.session_state.tela = "torneio_lista"; st.rerun()
+        if st.button("🏅 Conquistas", use_container_width=True, key="sb_con"):
+            st.session_state.tela = "conquistas"; st.rerun()
+        if st.button("👤 Meu Perfil", use_container_width=True, key="sb_per"):
+            st.session_state.perfil_id = uid
+            st.session_state.tela = "perfil"; st.rerun()
+
+        st.markdown("<hr style='border-color:var(--border);margin:14px 0 8px;'>", unsafe_allow_html=True)
+        if st.button("🚪 Sair", use_container_width=True, key="sb_sair"):
+            for k in ["tela", "aluno", "uid"]:
+                if k in st.session_state: del st.session_state[k]
+            st.session_state.tela = "login"; st.rerun()
+
+render_sidebar()
+
+# =========================================================
 # TELA: LOGIN (redesenhada)
 # =========================================================
 if st.session_state.tela == "login":
@@ -832,11 +1369,12 @@ if st.session_state.tela == "login":
     st.markdown("<br>", unsafe_allow_html=True)
     h1, h2, h3 = st.columns([1, 2, 1])
     with h2:
-        st.markdown("""
+        st.markdown(f"""
         <div class='premium-card' style='text-align:center;'>
-            <h1 class='titulo-principal'>🐑 Sheep Teacher</h1>
+            <div class='logo-wrap'>{LOGO_SVG}</div>
+            <h1 class='titulo-principal'>Sheep Teacher</h1>
             <p class='subtitulo'>Bethany Church English School<br>
-            <span style='color:lime;'>Learn English. Grow in Faith.</span></p>
+            <span class='destaque-lime'>Learn English. Grow in Faith.</span></p>
         </div>
         """, unsafe_allow_html=True)
 
@@ -904,8 +1442,8 @@ if st.session_state.tela == "login":
                             st.session_state.aluno = nome
                             atualizar_streak_no_login(uid)
                             verificar_conquistas(uid)
-                            st.success(f"Conta criada! Bem-vindo, {nome}.")
-                            reset_para_inicio()
+                            st.session_state.onboarding_slide = 0
+                            st.session_state.tela = "onboarding"
                             st.rerun()
 
     with l2:
@@ -939,12 +1477,14 @@ elif st.session_state.tela == "admin":
                 licoes_a = consultar_um("SELECT COUNT(*) FROM progresso WHERE aluno_id = ?", (uid_a,))[0]
                 badges_a = consultar_um("SELECT COUNT(*) FROM conquistas WHERE aluno_id = ?", (uid_a,))[0]
                 st.markdown(f"""
-                <div class='ranking-box'>
-                <b>{nome_a}</b> &nbsp;|&nbsp; {xp_a} XP &nbsp;|&nbsp;
+                <div class='ranking-box' style='display:flex;align-items:center;gap:12px;'>
+                {render_avatar(nome_a, 42)}
+                <div style='flex:1;'>
+                <b>{nome_a}</b> &nbsp;|&nbsp; <span style='color:var(--primary);font-weight:600;'>{xp_a} XP</span> &nbsp;|&nbsp;
                 🔥 {streak_a or 0} (melhor: {melhor_a or 0}) &nbsp;|&nbsp;
                 ✅ {licoes_a} lições &nbsp;|&nbsp; 🏅 {badges_a} conquistas<br>
-                <small style='color:#777;'>Último acesso: {ult_a or '—'} &nbsp;|&nbsp; Cadastrado: {crio_a or '—'}</small>
-                </div>
+                <small style='color:var(--text-muted);'>Último acesso: {ult_a or '—'} &nbsp;|&nbsp; Cadastrado: {crio_a or '—'}</small>
+                </div></div>
                 """, unsafe_allow_html=True)
 
     with aba2:
@@ -963,7 +1503,7 @@ elif st.session_state.tela == "admin":
             pergunta, correta, total, qtd = p
             st.markdown(f"""
             <div class='ranking-box' style='border-left-color:#ff5252;'>
-            <b>{pergunta}</b> → <span style='color:lime;'>{correta}</span><br>
+            <b>{pergunta}</b> → <span style='color:var(--primary);'>{correta}</span><br>
             <small>{total} erros totais, {qtd} aluno(s) erraram</small>
             </div>
             """, unsafe_allow_html=True)
@@ -999,14 +1539,14 @@ elif st.session_state.tela == "admin":
                     res = f"🏆 <b>{n2}</b> venceu ({s1_} x {s2_})"
             else:
                 res = f"⏳ Aguardando <b>{n2}</b> (placar parcial: {s1_} x —)"
-            st.markdown(f"<div class='ranking-box'>{n1} vs {n2}<br>{res}<br><small style='color:#999;'>{criado}</small></div>", unsafe_allow_html=True)
+            st.markdown(f"<div class='ranking-box'>{n1} vs {n2}<br>{res}<br><small style='color:var(--text-muted);'>{criado}</small></div>", unsafe_allow_html=True)
 
     with aba4:
         st.markdown("### Conteúdo atual")
         for mod in consultar("SELECT id, titulo, nivel FROM modulos ORDER BY id"):
             mid, tit, niv = mod
             niv_label = {1: "Básico", 2: "Intermediário", 3: "Avançado"}.get(niv, "—")
-            with st.expander(f"📦 {tit} — Nível: {niv_label}"):
+            with st.expander(f"{icone_modulo(tit)} {tit} — Nível: {niv_label}"):
                 for lic in consultar("SELECT titulo_botao, pergunta, resposta_correta FROM licoes WHERE modulo_id = ?", (mid,)):
                     st.markdown(f"- **{lic[0]}**: _{lic[1]}_ → `{lic[2]}`")
 
@@ -1060,7 +1600,13 @@ elif st.session_state.tela == "inicio":
     badges_qtd = consultar_um("SELECT COUNT(*) FROM conquistas WHERE aluno_id = ?", (uid,))[0]
 
     # Header com stats
-    st.markdown(f"### 👋 Bem-vindo, **{st.session_state.aluno}**!")
+    st.markdown(
+        f"<div style='display:flex;align-items:center;gap:14px;margin-bottom:18px;'>"
+        f"{render_avatar(st.session_state.aluno, 52)}"
+        f"<div><h3 style='margin:0;'>Bem-vindo, {st.session_state.aluno}</h3>"
+        f"<span class='subtitulo'>Pronto pra mais uma lição?</span></div></div>",
+        unsafe_allow_html=True
+    )
     sa, sb, sc, sd = st.columns(4)
     with sa: st.markdown(f"<div class='stat-box'><div class='stat-num'>{xp_a}</div><div class='stat-label'>XP</div></div>", unsafe_allow_html=True)
     with sb: st.markdown(f"<div class='stat-box'><div class='stat-num'>🔥 {streak_a or 0}</div><div class='stat-label'>Streak (dias)</div></div>", unsafe_allow_html=True)
@@ -1072,36 +1618,62 @@ elif st.session_state.tela == "inicio":
     # Notificação de desafios pendentes
     pendentes_qtd = len(duelos_pendentes_para_responder(uid))
     if pendentes_qtd > 0:
-        st.markdown(f"<div style='background:#3A1B1B;border-left:4px solid #FF5252;padding:14px;border-radius:8px;margin-bottom:14px;'><b>🥊 Você foi desafiado!</b> Você tem <b>{pendentes_qtd}</b> duelo(s) esperando sua resposta.</div>", unsafe_allow_html=True)
+        st.markdown(f"<div style='background:#3A1B1B;border-left:4px solid #F87171;padding:14px;border-radius:8px;margin-bottom:14px;'><b>🥊 Você foi desafiado!</b> Você tem <b>{pendentes_qtd}</b> duelo(s) esperando sua resposta.</div>", unsafe_allow_html=True)
 
-    # Botões de ação rápida
-    b1, b2, b3, b4 = st.columns(4)
-    with b1:
-        if st.button("🧠 Revisão", use_container_width=True):
-            revisao = obter_revisao_inteligente(uid, n=10)
-            if not revisao:
-                st.warning("Faça pelo menos uma lição para liberar a revisão.")
-            else:
-                st.session_state.trilha = revisao
-                st.session_state.idx = 0
-                st.session_state.vidas = 3
-                st.session_state.respondido = False
-                st.session_state.opcoes_atuais = []
-                st.session_state.modo_revisao = True
-                st.session_state.tela = "licao"
-                st.rerun()
-    with b2:
-        label = f"🥊 Duelos ({pendentes_qtd})" if pendentes_qtd > 0 else "🥊 Duelos"
-        if st.button(label, use_container_width=True):
-            st.session_state.tela = "duelo_lobby"; st.rerun()
-    with b3:
-        if st.button("🏅 Conquistas", use_container_width=True):
-            st.session_state.tela = "conquistas"; st.rerun()
-    with b4:
-        if st.button("🚪 Sair", use_container_width=True):
-            for k in ["tela", "aluno", "uid"]:
-                if k in st.session_state: del st.session_state[k]
-            st.session_state.tela = "login"; st.rerun()
+    # Notificação de partidas de torneio
+    partidas_torneio = partidas_pendentes_do_aluno(uid)
+    if partidas_torneio:
+        for pt in partidas_torneio:
+            partida_id, t_nome, t_id, rodada, j1, j2, j1_n, j2_n = pt
+            oponente = j2_n if j1 == uid else j1_n
+            st.markdown(f"<div style='background:#3A2D1B;border-left:4px solid #FFC97C;padding:14px;border-radius:8px;margin-bottom:14px;'><b>🏆 Torneio \"{t_nome}\" — Rodada {rodada}</b><br>Sua próxima partida é contra <b>{oponente}</b>. Vá no menu de Torneios para jogar.</div>", unsafe_allow_html=True)
+
+    # Desafio Diário - destaque do dia
+    desafio_lic_id, desafio_feito = obter_ou_gerar_desafio_diario(uid)
+    if desafio_lic_id:
+        if desafio_feito:
+            st.markdown(
+                f"<div style='background:linear-gradient(135deg, rgba(16,185,129,0.12), rgba(252,211,77,0.06));"
+                f"border:1px solid var(--primary);border-radius:14px;padding:16px 20px;margin-bottom:16px;"
+                f"display:flex;align-items:center;gap:14px;'>"
+                f"<div style='font-size:1.8rem;'>✅</div>"
+                f"<div style='flex:1;'>"
+                f"<b style='color:var(--primary-light);'>Desafio diário completo!</b><br>"
+                f"<small style='color:var(--text-dim);'>Volte amanhã pra um novo desafio.</small>"
+                f"</div></div>",
+                unsafe_allow_html=True
+            )
+        else:
+            c1, c2 = st.columns([4, 1])
+            with c1:
+                st.markdown(
+                    f"<div style='background:linear-gradient(135deg, rgba(245,158,11,0.15), rgba(252,211,77,0.05));"
+                    f"border:1px solid rgba(245,158,11,0.4);border-radius:14px;padding:16px 20px;"
+                    f"display:flex;align-items:center;gap:14px;'>"
+                    f"<div style='font-size:1.8rem;'>🎁</div>"
+                    f"<div style='flex:1;'>"
+                    f"<b style='color:var(--gold);'>Desafio Diário</b> · <span style='color:var(--text-dim);font-size:0.9rem;'>+{DESAFIO_XP_BONUS} XP bônus</span><br>"
+                    f"<small style='color:var(--text-dim);'>Uma pergunta especial hoje. Aceita?</small>"
+                    f"</div></div>",
+                    unsafe_allow_html=True
+                )
+            with c2:
+                if st.button("🎯 Fazer", key="btn_desafio_diario", use_container_width=True):
+                    q = consultar_um(
+                        "SELECT id, pergunta, opcao_1, opcao_2, opcao_3, opcao_4, resposta_correta, explicacao FROM licoes WHERE id = ?",
+                        (desafio_lic_id,)
+                    )
+                    if q:
+                        st.session_state.trilha = [q]
+                        st.session_state.idx = 0
+                        st.session_state.vidas = 3
+                        st.session_state.respondido = False
+                        st.session_state.opcoes_atuais = []
+                        st.session_state.modo_revisao = False
+                        st.session_state.modo_desafio_diario = True
+                        st.session_state.tela = "licao"
+                        st.rerun()
+        st.markdown("<br>", unsafe_allow_html=True)
 
     st.markdown("---")
 
@@ -1116,7 +1688,7 @@ elif st.session_state.tela == "inicio":
                                      JOIN licoes l ON l.id = p.licao_id
                                      WHERE l.modulo_id = ? AND p.aluno_id = ?""", (mid, uid))[0]
             pct = int(100 * feitas / total) if total else 0
-            label_expander = f"📦 {mod_tit}  —  {feitas}/{total} ({pct}%)"
+            label_expander = f"{icone_modulo(mod_tit)}  {mod_tit}  —  {feitas}/{total} ({pct}%)"
 
             with st.expander(label_expander):
                 st.markdown(f"<span class='tag-nivel {niv_label[1]}'>{niv_label[0]}</span>", unsafe_allow_html=True)
@@ -1176,7 +1748,7 @@ elif st.session_state.tela == "conquistas":
         with cols[i % 3]:
             cls = "badge-card" if bid in obtidas else "badge-card badge-locked"
             status = "✅ Conquistada" if bid in obtidas else "🔒 Bloqueada"
-            st.markdown(f"<div class='{cls}'><div style='font-size:2rem'>{icone}</div><b>{nome}</b><br><small style='color:#999;'>{desc}</small><br><small>{status}</small></div>", unsafe_allow_html=True)
+            st.markdown(f"<div class='{cls}'><div style='font-size:2rem'>{icone}</div><b>{nome}</b><br><small style='color:var(--text-muted);'>{desc}</small><br><small>{status}</small></div>", unsafe_allow_html=True)
 
 # =========================================================
 # TELA: LIÇÃO
@@ -1202,7 +1774,12 @@ elif st.session_state.tela == "licao":
             reset_para_inicio(); st.rerun()
     with c_prog:
         st.progress((idx + 1) / len(trilha))
-        modo_label = "🧠 Revisão" if st.session_state.modo_revisao else "📘 Aprendizado"
+        if st.session_state.get("modo_desafio_diario"):
+            modo_label = "🎁 Desafio Diário"
+        elif st.session_state.modo_revisao:
+            modo_label = "🧠 Revisão"
+        else:
+            modo_label = "📘 Aprendizado"
         st.write(f"{modo_label} — Fase {idx + 1} de {len(trilha)}")
 
     st.markdown(f"### Vidas: {'❤️' * st.session_state.vidas}")
@@ -1219,7 +1796,7 @@ elif st.session_state.tela == "licao":
     else:
         # --- MC: múltipla escolha (PT → EN) ---
         if tipo == "mc":
-            st.markdown(f"<div class='premium-card'><h3>Traduza:</h3><h2 style='color:lime;'>{pergunta}</h2></div>", unsafe_allow_html=True)
+            st.markdown(f"<div class='premium-card'><h3>Traduza:</h3><h2 style='color:var(--primary);'>{pergunta}</h2></div>", unsafe_allow_html=True)
             if not st.session_state.respondido:
                 with st.form("form_mc"):
                     resp = st.radio("Escolha a opção em inglês:", st.session_state.opcoes_atuais, index=None)
@@ -1255,7 +1832,7 @@ elif st.session_state.tela == "licao":
 
         # --- TYPE: digite a tradução ---
         elif tipo == "type":
-            st.markdown(f"<div class='premium-card'><h3>Digite em inglês:</h3><h2 style='color:lime;'>{pergunta}</h2></div>", unsafe_allow_html=True)
+            st.markdown(f"<div class='premium-card'><h3>Digite em inglês:</h3><h2 style='color:var(--primary);'>{pergunta}</h2></div>", unsafe_allow_html=True)
             if not st.session_state.respondido:
                 with st.form("form_type"):
                     resp = st.text_input("Sua resposta:", placeholder="Digite aqui...")
@@ -1304,23 +1881,38 @@ elif st.session_state.tela == "duelo_lobby":
     pendentes = duelos_pendentes_para_responder(uid)
     if not pendentes:
         st.caption("Ninguém te desafiou ainda. Calmaria antes da tempestade.")
+    meu_xp = consultar_um("SELECT xp_total FROM alunos WHERE id = ?", (uid,))[0]
     for d_id, oponente, score_op, criado in pendentes:
+        duelo_info = carregar_duelo(d_id)
+        aposta = duelo_info[10] if duelo_info else None
         c1, c2 = st.columns([4, 1])
         with c1:
-            st.markdown(f"<div class='ranking-box' style='border-left-color:#FF5252;'><b>{oponente}</b> te desafiou! Acertou <b>{score_op}/{DUELO_QUESTOES}</b>.<br><small style='color:#999;'>{criado}</small></div>", unsafe_allow_html=True)
+            aposta_txt = f" — 💰 Aposta: <b>{aposta} XP</b>" if aposta else ""
+            st.markdown(f"<div class='ranking-box' style='border-left-color:var(--danger);display:flex;align-items:center;gap:12px;'>{render_avatar(oponente, 40)}<div style='flex:1;'><b>{oponente}</b> te desafiou! Acertou <b>{score_op}/{DUELO_QUESTOES}</b>.{aposta_txt}<br><small style='color:var(--text-muted);'>{criado}</small></div></div>", unsafe_allow_html=True)
         with c2:
-            if st.button("Aceitar ⚔️", key=f"aceitar_{d_id}", use_container_width=True):
-                duelo = carregar_duelo(d_id)
-                ids = json.loads(duelo[3])
-                st.session_state.duelo_id = d_id
-                st.session_state.duelo_modo = "desafiado"
-                st.session_state.duelo_questoes = carregar_questoes(ids)
-                st.session_state.duelo_idx = 0
-                st.session_state.duelo_score = 0
-                st.session_state.respondido = False
-                st.session_state.opcoes_atuais = []
-                st.session_state.tela = "duelo_jogando"
-                st.rerun()
+            pode_aceitar = (not aposta) or (meu_xp >= aposta)
+            if not pode_aceitar:
+                st.button(f"❌ Sem XP", key=f"semxp_{d_id}", use_container_width=True, disabled=True,
+                          help=f"Você precisa de {aposta} XP para aceitar essa aposta.")
+            else:
+                if st.button("Aceitar ⚔️", key=f"aceitar_{d_id}", use_container_width=True):
+                    duelo = carregar_duelo(d_id)
+                    ids = json.loads(duelo[3])
+                    # Se tem aposta, debita XP do desafiado agora
+                    if aposta:
+                        executar("UPDATE alunos SET xp_total = xp_total - ? WHERE id = ?", (aposta, uid))
+                    st.session_state.duelo_id = d_id
+                    st.session_state.duelo_modo = "desafiado"
+                    st.session_state.duelo_questoes = carregar_questoes(ids)
+                    st.session_state.duelo_idx = 0
+                    st.session_state.duelo_score = 0
+                    st.session_state.respondido = False
+                    st.session_state.opcoes_atuais = []
+                    st.session_state.duelo_iniciado_em = time.time()
+                    st.session_state.duelo_aposta = aposta
+                    st.session_state.duelo_torneio_partida_id = duelo[13]  # se for partida de torneio
+                    st.session_state.tela = "duelo_jogando"
+                    st.rerun()
 
     # Enviados aguardando
     st.markdown("### 🟡 Aguardando resposta")
@@ -1330,7 +1922,7 @@ elif st.session_state.tela == "duelo_lobby":
     for d_id, oponente, meu_score, criado in enviados:
         c1, c2 = st.columns([4, 1])
         with c1:
-            st.markdown(f"<div class='ranking-box' style='border-left-color:#FFC97C;'>Aguardando <b>{oponente}</b>... Você acertou <b>{meu_score}/{DUELO_QUESTOES}</b>.<br><small style='color:#999;'>{criado}</small></div>", unsafe_allow_html=True)
+            st.markdown(f"<div class='ranking-box' style='border-left-color:var(--accent);display:flex;align-items:center;gap:12px;'>{render_avatar(oponente, 40)}<div style='flex:1;'>Aguardando <b>{oponente}</b>... Você acertou <b>{meu_score}/{DUELO_QUESTOES}</b>.<br><small style='color:var(--text-muted);'>{criado}</small></div></div>", unsafe_allow_html=True)
         with c2:
             if st.button("Cancelar", key=f"cancelar_{d_id}", use_container_width=True):
                 if cancelar_duelo(d_id, uid):
@@ -1346,10 +1938,10 @@ elif st.session_state.tela == "duelo_lobby":
         if vencedor_id is None:
             emoji, cor, status = "🤝", "#FFC97C", "Empate"
         elif vencedor_id == uid:
-            emoji, cor, status = "🏆", "lime", "Vitória"
+            emoji, cor, status = "🏆", "#10B981", "Vitória"
         else:
-            emoji, cor, status = "💀", "#FF5252", "Derrota"
-        st.markdown(f"<div class='ranking-box' style='border-left-color:{cor};'>{emoji} <b>{status}</b> contra <b>{oponente}</b> — {meu_score} x {score_op}<br><small style='color:#999;'>{quando}</small></div>", unsafe_allow_html=True)
+            emoji, cor, status = "💀", "#F87171", "Derrota"
+        st.markdown(f"<div class='ranking-box' style='border-left-color:{cor};'>{emoji} <b>{status}</b> contra <b>{oponente}</b> — {meu_score} x {score_op}<br><small style='color:var(--text-muted);'>{quando}</small></div>", unsafe_allow_html=True)
 
     # Ranking de duelistas
     st.markdown("---")
@@ -1363,7 +1955,7 @@ elif st.session_state.tela == "duelo_lobby":
     if not duelistas:
         st.caption("Ninguém duelou ainda. Seja o primeiro!")
     for nome_d, v_d, d_d, e_d in duelistas:
-        st.markdown(f"<div class='ranking-box'><b>{nome_d}</b> &nbsp;|&nbsp; 🏆 {v_d} &nbsp;|&nbsp; 💀 {d_d} &nbsp;|&nbsp; 🤝 {e_d}</div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='ranking-box' style='display:flex;align-items:center;gap:12px;'>{render_avatar(nome_d, 36)}<div style='flex:1;'><b>{nome_d}</b> &nbsp;|&nbsp; 🏆 {v_d} &nbsp;|&nbsp; 💀 {d_d} &nbsp;|&nbsp; 🤝 {e_d}</div></div>", unsafe_allow_html=True)
 
 # =========================================================
 # TELA: DUELO - CRIAR
@@ -1399,7 +1991,27 @@ elif st.session_state.tela == "duelo_criar":
                     value=2,
                     format_func=lambda x: {1: "🟢 Fácil (básico)", 2: "🟡 Médio (básico + intermediário)", 3: "🔴 Difícil (tudo)"}[x]
                 )
-                st.caption(f"⚔️ Serão {DUELO_QUESTOES} questões aleatórias. Você joga primeiro, depois o oponente. Vencedor leva {DUELO_XP_VITORIA} XP, perdedor {DUELO_XP_DERROTA}, empate {DUELO_XP_EMPATE} cada.")
+
+                # Aposta de XP
+                meu_xp = consultar_um("SELECT xp_total FROM alunos WHERE id = ?", (uid,))[0]
+                max_aposta_aluno = min(DUELO_APOSTA_MAX, meu_xp)
+                if max_aposta_aluno >= DUELO_APOSTA_MIN:
+                    quer_apostar = st.checkbox("💰 Apostar XP neste duelo")
+                    if quer_apostar:
+                        aposta = st.slider(
+                            f"Quanto apostar? (você tem {meu_xp} XP)",
+                            min_value=DUELO_APOSTA_MIN,
+                            max_value=max_aposta_aluno,
+                            value=DUELO_APOSTA_MIN, step=10
+                        )
+                        st.caption(f"⚠️ Os {aposta} XP serão descontados de você agora. Se vencer, leva o dobro ({2*aposta}). Se perder, perdeu tudo. Empate: cada um recebe o seu de volta.")
+                    else:
+                        aposta = None
+                else:
+                    st.caption(f"💡 Você precisa de pelo menos {DUELO_APOSTA_MIN} XP pra apostar.")
+                    aposta = None
+
+                st.caption(f"⚔️ Serão {DUELO_QUESTOES} questões aleatórias. Você joga primeiro, depois o oponente. Vencedor leva {DUELO_XP_VITORIA} XP, perdedor {DUELO_XP_DERROTA}, empate {DUELO_XP_EMPATE} cada (sem aposta).")
                 iniciar = st.form_submit_button("⚔️ INICIAR DUELO", use_container_width=True)
                 if iniciar:
                     ids = gerar_questoes_duelo(nivel_max=nivel, n=DUELO_QUESTOES)
@@ -1414,6 +2026,9 @@ elif st.session_state.tela == "duelo_criar":
                         st.session_state.duelo_score = 0
                         st.session_state.respondido = False
                         st.session_state.opcoes_atuais = []
+                        st.session_state.duelo_iniciado_em = time.time()
+                        st.session_state.duelo_aposta = aposta
+                        st.session_state.duelo_torneio_partida_id = None
                         st.session_state.tela = "duelo_jogando"
                         st.rerun()
 
@@ -1425,32 +2040,61 @@ elif st.session_state.tela == "duelo_jogando":
     questoes = st.session_state.duelo_questoes
     idx = st.session_state.duelo_idx
     if idx >= len(questoes):
-        # Acabou o duelo
+        # Acabou o duelo. Calcular tempo total.
+        tempo_total = time.time() - st.session_state.duelo_iniciado_em if st.session_state.duelo_iniciado_em else None
         if st.session_state.duelo_modo == "desafiante":
-            # Salva o duelo (1ª vez no DB)
             duelo_id = criar_duelo(
                 uid,
                 st.session_state.duelo_oponente_id,
                 [q[0] for q in questoes],
-                st.session_state.duelo_score
+                st.session_state.duelo_score,
+                xp_apostado=st.session_state.duelo_aposta,
+                tempo_desafiante=tempo_total,
+                torneio_partida_id=st.session_state.duelo_torneio_partida_id
             )
             st.session_state.duelo_id = duelo_id
+            # Se for partida de torneio, registra o duelo na partida
+            if st.session_state.duelo_torneio_partida_id:
+                executar("UPDATE torneio_partidas SET duelo_id = ? WHERE id = ?",
+                         (duelo_id, st.session_state.duelo_torneio_partida_id))
         else:
-            # Finaliza o duelo (atualiza com score do desafiado)
-            finalizar_duelo(st.session_state.duelo_id, st.session_state.duelo_score)
+            finalizar_duelo(st.session_state.duelo_id, st.session_state.duelo_score,
+                            tempo_desafiado=tempo_total)
+            verificar_conquistas(uid)
         st.session_state.tela = "duelo_resultado"
         st.rerun()
     else:
         q = questoes[idx]
         lic_id, pergunta, o1, o2, o3, o4, correta, explicacao = q
 
-        c_sair, c_prog = st.columns([1, 4])
+        c_sair, c_prog, c_timer = st.columns([1, 3, 1])
         with c_sair:
             modo_emoji = "⚔️" if st.session_state.duelo_modo == "desafiante" else "🛡️"
-            st.markdown(f"### {modo_emoji} Duelo")
+            torneio_tag = " 🏆" if st.session_state.duelo_torneio_partida_id else ""
+            st.markdown(f"### {modo_emoji}{torneio_tag} Duelo")
         with c_prog:
             st.progress((idx + 1) / len(questoes))
-            st.write(f"Questão {idx + 1} de {len(questoes)} — Acertos: {st.session_state.duelo_score}")
+            placar_extra = ""
+            if st.session_state.duelo_aposta:
+                placar_extra = f" — 💰 {st.session_state.duelo_aposta} XP em jogo"
+            st.write(f"Questão {idx + 1} de {len(questoes)} — Acertos: {st.session_state.duelo_score}{placar_extra}")
+        with c_timer:
+            # Cronômetro JS decorativo (zera a cada questão visualmente)
+            st.components.v1.html(f"""
+            <div id='timer' style='color:var(--primary);font-weight:bold;font-size:1.3rem;text-align:right;'>⏱️ 0s</div>
+            <script>
+                (function(){{
+                    var t0 = Date.now();
+                    var el = document.getElementById('timer');
+                    var ref = {DUELO_TEMPO_REFERENCIA_SEG};
+                    var iv = setInterval(function(){{
+                        var s = Math.floor((Date.now()-t0)/1000);
+                        el.textContent = '⏱️ ' + s + 's';
+                        el.style.color = s > ref ? '#F87171' : (s > ref*0.7 ? '#FFC97C' : '#10B981');
+                    }}, 250);
+                }})();
+            </script>
+            """, height=40)
 
         # Se for desafiado, mostra score a bater
         if st.session_state.duelo_modo == "desafiado":
@@ -1462,14 +2106,14 @@ elif st.session_state.tela == "duelo_jogando":
                     rest = len(questoes) - idx
                     st.markdown(f"<div style='background:#1B2A3A;border-left:4px solid #4FC3F7;padding:10px;border-radius:6px;margin-bottom:10px;'>🎯 Oponente fez <b>{score_oponente}</b>. Você precisa de mais <b>{falta}</b> acerto(s) em <b>{rest}</b> questão(ões) restantes.</div>", unsafe_allow_html=True)
                 else:
-                    st.markdown(f"<div style='background:#1B3A1B;border-left:4px solid lime;padding:10px;border-radius:6px;margin-bottom:10px;'>🔥 Você já garantiu pelo menos o empate!</div>", unsafe_allow_html=True)
+                    st.markdown(f"<div style='background:#1B3A1B;border-left:3px solid var(--primary);padding:10px;border-radius:6px;margin-bottom:10px;'>🔥 Você já garantiu pelo menos o empate!</div>", unsafe_allow_html=True)
 
         if not st.session_state.opcoes_atuais:
             ops = [o1, o2, o3, o4]
             random.shuffle(ops)
             st.session_state.opcoes_atuais = ops
 
-        st.markdown(f"<div class='premium-card'><h3>Traduza:</h3><h2 style='color:lime;'>{pergunta}</h2></div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='premium-card'><h3>Traduza:</h3><h2 style='color:var(--primary);'>{pergunta}</h2></div>", unsafe_allow_html=True)
 
         if not st.session_state.respondido:
             with st.form(f"form_duelo_q{idx}"):
@@ -1506,16 +2150,21 @@ elif st.session_state.tela == "duelo_resultado":
         if st.button("Voltar"):
             reset_para_inicio(); st.rerun()
     else:
-        d_id, des_id, dou_id, q_ids, sc_des, sc_dou, vencedor, status, criado, atualizado = duelo
+        (d_id, des_id, dou_id, q_ids, sc_des, sc_dou, vencedor, status, criado, atualizado,
+         xp_apostado, tempo_des, tempo_dou, torneio_partida_id) = duelo
         nome_des = consultar_um("SELECT nome FROM alunos WHERE id = ?", (des_id,))[0]
         nome_dou = consultar_um("SELECT nome FROM alunos WHERE id = ?", (dou_id,))[0]
 
         if status == "aguardando_desafiado":
             # Desafiante acabou de jogar, mas o outro ainda não respondeu
+            tempo_txt = f"<p>⏱️ Seu tempo: <b>{tempo_des:.0f}s</b></p>" if tempo_des else ""
+            aposta_txt = f"<p>💰 Aposta: <b>{xp_apostado} XP</b> (já descontados de você)</p>" if xp_apostado else ""
             st.markdown(f"""
             <div class='premium-card' style='text-align:center;'>
                 <h1>⚔️ Desafio enviado!</h1>
-                <h2 style='color:lime;'>{sc_des}/{len(json.loads(q_ids))}</h2>
+                <h2 style='color:var(--primary);'>{sc_des}/{len(json.loads(q_ids))}</h2>
+                {tempo_txt}
+                {aposta_txt}
                 <p>Agora é só esperar <b>{nome_dou}</b> aceitar e responder.</p>
                 <p>Você ganha XP só depois que ele jogar.</p>
             </div>
@@ -1524,45 +2173,501 @@ elif st.session_state.tela == "duelo_resultado":
             # Finalizado
             if vencedor is None:
                 emoji, titulo, cor = "🤝", "EMPATE!", "#FFC97C"
-                msg = f"Vocês empataram com <b>{sc_des}</b> acertos cada."
+                if xp_apostado:
+                    msg = f"Empate com <b>{sc_des}</b> acertos cada. Cada um recebeu seus {xp_apostado} XP de volta."
+                else:
+                    msg = f"Vocês empataram com <b>{sc_des}</b> acertos cada. +{DUELO_XP_EMPATE} XP."
             elif vencedor == uid:
-                emoji, titulo, cor = "🏆", "VITÓRIA!", "lime"
+                emoji, titulo, cor = "🏆", "VITÓRIA!", "#10B981"
                 meu = sc_des if uid == des_id else sc_dou
                 op = sc_dou if uid == des_id else sc_des
                 op_nome = nome_dou if uid == des_id else nome_des
-                msg = f"Você venceu <b>{op_nome}</b> por <b>{meu} a {op}</b>! +{DUELO_XP_VITORIA} XP"
+                if xp_apostado:
+                    msg = f"Você venceu <b>{op_nome}</b> por <b>{meu} a {op}</b>! 💰 Você leva {2*xp_apostado} XP da aposta."
+                else:
+                    msg = f"Você venceu <b>{op_nome}</b> por <b>{meu} a {op}</b>! +{DUELO_XP_VITORIA} XP"
             else:
-                emoji, titulo, cor = "💀", "DERROTA", "#FF5252"
+                emoji, titulo, cor = "💀", "DERROTA", "#F87171"
                 meu = sc_des if uid == des_id else sc_dou
                 op = sc_dou if uid == des_id else sc_des
                 op_nome = nome_dou if uid == des_id else nome_des
-                msg = f"<b>{op_nome}</b> venceu por <b>{op} a {meu}</b>. +{DUELO_XP_DERROTA} XP de consolação."
+                if xp_apostado:
+                    msg = f"<b>{op_nome}</b> venceu por <b>{op} a {meu}</b>. 💸 Você perdeu os {xp_apostado} XP apostados."
+                else:
+                    msg = f"<b>{op_nome}</b> venceu por <b>{op} a {meu}</b>. +{DUELO_XP_DERROTA} XP de consolação."
+
+            tempo_extra = ""
+            if tempo_des and tempo_dou:
+                tempo_extra = f"<p style='color:var(--text-dim);'>⏱️ Tempo: <b>{nome_des}</b> {tempo_des:.0f}s &nbsp;×&nbsp; {tempo_dou:.0f}s <b>{nome_dou}</b></p>"
+                if sc_des == sc_dou and vencedor:  # houve desempate por tempo
+                    tempo_extra += "<p style='color:#FFC97C;'>⚡ Desempate por tempo!</p>"
 
             st.markdown(f"""
             <div class='premium-card' style='text-align:center;border-color:{cor};'>
                 <div style='font-size:4rem'>{emoji}</div>
                 <h1 style='color:{cor};'>{titulo}</h1>
                 <p style='font-size:1.1rem;'>{msg}</p>
-                <p style='color:#8E8E93;'><b>{nome_des}</b> {sc_des} &nbsp;×&nbsp; {sc_dou} <b>{nome_dou}</b></p>
+                <p style='color:var(--text-dim);'><b>{nome_des}</b> {sc_des} &nbsp;×&nbsp; {sc_dou} <b>{nome_dou}</b></p>
+                {tempo_extra}
             </div>
             """, unsafe_allow_html=True)
 
-            # Verificar novas conquistas
             verificar_conquistas(uid)
 
-        c1, c2 = st.columns(2)
-        with c1:
-            if st.button("🥊 Voltar ao Lobby", use_container_width=True):
-                st.session_state.tela = "duelo_lobby"
-                st.session_state.duelo_id = None
-                st.session_state.duelo_modo = None
-                st.session_state.duelo_score = 0
-                st.session_state.duelo_questoes = []
-                st.session_state.duelo_idx = 0
+        # Botões de ação
+        if status == "finalizado" and not torneio_partida_id:
+            c1, c2, c3 = st.columns(3)
+            with c1:
+                if st.button("🔄 Revanche!", use_container_width=True):
+                    # Cria um novo duelo contra o mesmo oponente, mesmo nível, sem aposta
+                    oponente_id = dou_id if uid == des_id else des_id
+                    qtd_pend = len(duelos_enviados_aguardando(uid))
+                    if qtd_pend >= DUELO_MAX_PENDENTES:
+                        st.warning(f"Você já tem {DUELO_MAX_PENDENTES} duelos pendentes. Espere algum terminar.")
+                    else:
+                        # Detectar nível pelos questões originais
+                        ids_originais = json.loads(q_ids)
+                        nivel_max = consultar_um("""
+                            SELECT MAX(m.nivel) FROM modulos m
+                            JOIN licoes l ON l.modulo_id = m.id
+                            WHERE l.id IN ({})
+                        """.format(",".join("?" * len(ids_originais))), ids_originais)[0] or 2
+                        novos_ids = gerar_questoes_duelo(nivel_max=nivel_max, n=DUELO_QUESTOES)
+                        st.session_state.duelo_id = None
+                        st.session_state.duelo_modo = "desafiante"
+                        st.session_state.duelo_questoes = carregar_questoes(novos_ids)
+                        st.session_state.duelo_oponente_id = oponente_id
+                        st.session_state.duelo_idx = 0
+                        st.session_state.duelo_score = 0
+                        st.session_state.respondido = False
+                        st.session_state.opcoes_atuais = []
+                        st.session_state.duelo_iniciado_em = time.time()
+                        st.session_state.duelo_aposta = None
+                        st.session_state.duelo_torneio_partida_id = None
+                        st.session_state.tela = "duelo_jogando"
+                        st.rerun()
+            with c2:
+                if st.button("🥊 Voltar ao Lobby", use_container_width=True):
+                    st.session_state.tela = "duelo_lobby"
+                    st.session_state.duelo_id = None
+                    st.rerun()
+            with c3:
+                if st.button("🏠 Menu Principal", use_container_width=True):
+                    reset_para_inicio(); st.rerun()
+        else:
+            c1, c2 = st.columns(2)
+            with c1:
+                if torneio_partida_id:
+                    if st.button("🏆 Voltar ao torneio", use_container_width=True):
+                        # Encontra o torneio dessa partida
+                        tp = consultar_um("SELECT torneio_id FROM torneio_partidas WHERE id = ?", (torneio_partida_id,))
+                        if tp:
+                            st.session_state.torneio_atual = tp[0]
+                            st.session_state.tela = "torneio_detalhe"
+                        else:
+                            st.session_state.tela = "torneio_lista"
+                        st.rerun()
+                else:
+                    if st.button("🥊 Voltar ao Lobby", use_container_width=True):
+                        st.session_state.tela = "duelo_lobby"
+                        st.session_state.duelo_id = None
+                        st.rerun()
+            with c2:
+                if st.button("🏠 Menu Principal", use_container_width=True):
+                    reset_para_inicio(); st.rerun()
+
+# =========================================================
+# TELA: TORNEIO - LISTA
+# =========================================================
+elif st.session_state.tela == "torneio_lista":
+    uid = st.session_state.uid
+    if st.button("⬅️ Voltar ao menu"):
+        reset_para_inicio(); st.rerun()
+
+    st.markdown("## 🏆 Torneios")
+
+    # Partidas pendentes
+    pendentes = partidas_pendentes_do_aluno(uid)
+    if pendentes:
+        st.markdown("### ⚔️ Suas partidas pendentes")
+        for partida_id, t_nome, t_id, rodada, j1, j2, j1_n, j2_n in pendentes:
+            oponente_id = j2 if j1 == uid else j1
+            oponente = j2_n if j1 == uid else j1_n
+            c1, c2 = st.columns([4, 1])
+            with c1:
+                st.markdown(f"<div class='ranking-box' style='border-left-color:#FFC97C;'><b>{t_nome}</b> — Rodada {rodada}<br>Sua próxima partida: contra <b>{oponente}</b></div>", unsafe_allow_html=True)
+            with c2:
+                if st.button("Jogar ⚔️", key=f"jog_t_{partida_id}", use_container_width=True):
+                    t_info = consultar_um("SELECT nivel FROM torneios WHERE id = ?", (t_id,))
+                    nivel = t_info[0] if t_info else 2
+                    ids = gerar_questoes_duelo(nivel_max=nivel, n=DUELO_QUESTOES)
+                    st.session_state.duelo_id = None
+                    st.session_state.duelo_modo = "desafiante"
+                    st.session_state.duelo_questoes = carregar_questoes(ids)
+                    st.session_state.duelo_oponente_id = oponente_id
+                    st.session_state.duelo_idx = 0
+                    st.session_state.duelo_score = 0
+                    st.session_state.respondido = False
+                    st.session_state.opcoes_atuais = []
+                    st.session_state.duelo_iniciado_em = time.time()
+                    st.session_state.duelo_aposta = None
+                    st.session_state.duelo_torneio_partida_id = partida_id
+                    st.session_state.tela = "duelo_jogando"
+                    st.rerun()
+        st.markdown("---")
+
+    if st.button("➕ Criar Novo Torneio", use_container_width=True):
+        st.session_state.tela = "torneio_criar"; st.rerun()
+
+    st.markdown("### 📋 Torneios")
+    em_andamento = listar_torneios("em_andamento")
+    finalizados = listar_torneios("finalizado")
+
+    if em_andamento:
+        st.markdown("#### Em andamento")
+        for t in em_andamento:
+            t_id, nome, nivel, tamanho, status, campeao_id, criado = t
+            if st.button(f"📂 {nome} ({tamanho} jogadores, nível {nivel})", key=f"abrir_t_{t_id}", use_container_width=True):
+                st.session_state.torneio_atual = t_id
+                st.session_state.tela = "torneio_detalhe"
                 st.rerun()
-        with c2:
-            if st.button("🏠 Menu Principal", use_container_width=True):
-                reset_para_inicio(); st.rerun()
+    if finalizados:
+        st.markdown("#### Finalizados")
+        for t in finalizados[:5]:
+            t_id, nome, nivel, tamanho, status, campeao_id, criado = t
+            campeao_nome = consultar_um("SELECT nome FROM alunos WHERE id = ?", (campeao_id,))
+            cn = campeao_nome[0] if campeao_nome else "—"
+            if st.button(f"🏆 {nome} — Campeão: {cn}", key=f"abrir_t_fin_{t_id}", use_container_width=True):
+                st.session_state.torneio_atual = t_id
+                st.session_state.tela = "torneio_detalhe"
+                st.rerun()
+    if not em_andamento and not finalizados:
+        st.caption("Nenhum torneio ainda. Crie o primeiro!")
+
+# =========================================================
+# TELA: TORNEIO - CRIAR
+# =========================================================
+elif st.session_state.tela == "torneio_criar":
+    uid = st.session_state.uid
+    if st.button("⬅️ Voltar"):
+        st.session_state.tela = "torneio_lista"; st.rerun()
+
+    st.markdown("## ➕ Criar Novo Torneio")
+    alunos_disp = consultar("SELECT id, nome FROM alunos WHERE nome != ? ORDER BY nome", (PROFESSOR_NOME,))
+    if len(alunos_disp) < 4:
+        st.warning("São necessários no mínimo 4 alunos cadastrados pra criar um torneio.")
+    else:
+        with st.form("form_torneio"):
+            nome_t = st.text_input("Nome do torneio:", placeholder="Ex: Copa Bethany 2026")
+            tamanho = st.radio("Tamanho:", [4, 8], horizontal=True,
+                                format_func=lambda x: f"{x} jogadores ({'semifinal + final' if x==4 else 'quartas + semi + final'})")
+            nivel = st.select_slider("Dificuldade:", options=[1, 2, 3], value=2,
+                                      format_func=lambda x: {1:"🟢 Fácil",2:"🟡 Médio",3:"🔴 Difícil"}[x])
+            participantes_ids = st.multiselect(
+                f"Selecione exatamente {tamanho} participantes:",
+                options=[a[0] for a in alunos_disp],
+                format_func=lambda i: dict(alunos_disp)[i]
+            )
+            st.caption(f"🏆 Campeão: +{TORNEIO_XP_CAMPEAO} XP &nbsp;|&nbsp; Vice: +{TORNEIO_XP_FINALISTA} XP &nbsp;|&nbsp; Semifinalistas: +{TORNEIO_XP_SEMIFINALISTA} XP")
+            criar = st.form_submit_button("🏆 Criar Torneio", use_container_width=True)
+            if criar:
+                if not nome_t.strip():
+                    st.warning("Dê um nome ao torneio.")
+                elif len(participantes_ids) != tamanho:
+                    st.error(f"Selecione exatamente {tamanho} participantes (você selecionou {len(participantes_ids)}).")
+                else:
+                    t_id = criar_torneio(nome_t.strip(), nivel, participantes_ids)
+                    if t_id:
+                        st.success(f"Torneio criado! Bracket gerado.")
+                        st.session_state.torneio_atual = t_id
+                        st.session_state.tela = "torneio_detalhe"
+                        st.rerun()
+                    else:
+                        st.error("Erro ao criar o torneio.")
+
+# =========================================================
+# TELA: TORNEIO - DETALHE (BRACKET)
+# =========================================================
+elif st.session_state.tela == "torneio_detalhe":
+    uid = st.session_state.uid
+    t_id = st.session_state.get("torneio_atual")
+    if st.button("⬅️ Voltar aos torneios"):
+        st.session_state.tela = "torneio_lista"; st.rerun()
+
+    if not t_id:
+        st.error("Torneio não selecionado.")
+    else:
+        t, partidas = estado_torneio(t_id)
+        if not t:
+            st.error("Torneio não encontrado.")
+        else:
+            tid, nome, nivel, tamanho, status, campeao_id, criado, finalizado = t
+            niv_lbl = {1:"🟢 Fácil",2:"🟡 Médio",3:"🔴 Difícil"}[nivel]
+            st.markdown(f"## 🏆 {nome}")
+            st.caption(f"{tamanho} jogadores &nbsp;|&nbsp; {niv_lbl} &nbsp;|&nbsp; Status: {status}")
+
+            if campeao_id:
+                campeao_nome = consultar_um("SELECT nome FROM alunos WHERE id = ?", (campeao_id,))[0]
+                st.markdown(f"<div class='premium-card' style='text-align:center;border-color:gold;'><div style='font-size:3rem;'>🏆</div><h2 style='color:gold;'>CAMPEÃO: {campeao_nome}</h2></div>", unsafe_allow_html=True)
+                st.markdown("<br>", unsafe_allow_html=True)
+
+            # Organiza partidas por rodada
+            total_rodadas = 2 if tamanho == 4 else 3
+            nomes_rodadas = {1: "1ª Rodada", 2: "Semifinal" if tamanho == 8 else "Final"}
+            if tamanho == 8:
+                nomes_rodadas = {1: "Quartas de final", 2: "Semifinal", 3: "Final"}
+            else:
+                nomes_rodadas = {1: "Semifinal", 2: "Final"}
+
+            for r in range(1, total_rodadas + 1):
+                st.markdown(f"### {nomes_rodadas[r]}")
+                partidas_r = [p for p in partidas if p[1] == r]
+                for p in partidas_r:
+                    pid, rod, pos, j1, j2, venc, duelo_id, j1n, j2n, vn = p
+                    j1n_disp = j1n or "TBD"
+                    j2n_disp = j2n or "TBD"
+                    if venc:
+                        # Já terminou
+                        st.markdown(f"<div class='ranking-box' style='border-left-color:var(--primary);'>"
+                                    f"<b style='color:{'#10B981' if j1 == venc else '#888'};'>{j1n_disp}</b> vs "
+                                    f"<b style='color:{'#10B981' if j2 == venc else '#888'};'>{j2n_disp}</b><br>"
+                                    f"<small>Vencedor: <b style='color:var(--primary);'>{vn}</b></small>"
+                                    f"</div>", unsafe_allow_html=True)
+                    elif j1 and j2:
+                        # Pronta pra jogar
+                        if uid in (j1, j2):
+                            c1, c2 = st.columns([4, 1])
+                            with c1:
+                                st.markdown(f"<div class='ranking-box' style='border-left-color:#FFC97C;'><b>{j1n_disp}</b> vs <b>{j2n_disp}</b> ⏳</div>", unsafe_allow_html=True)
+                            with c2:
+                                if st.button("Jogar ⚔️", key=f"play_t_{pid}", use_container_width=True):
+                                    oponente_id = j2 if j1 == uid else j1
+                                    if duelo_id:
+                                        # Já existe duelo (o outro jogou primeiro): aceitar como desafiado
+                                        dl = carregar_duelo(duelo_id)
+                                        if dl:
+                                            ids = json.loads(dl[3])
+                                            st.session_state.duelo_id = duelo_id
+                                            st.session_state.duelo_modo = "desafiado"
+                                            st.session_state.duelo_questoes = carregar_questoes(ids)
+                                            st.session_state.duelo_idx = 0
+                                            st.session_state.duelo_score = 0
+                                            st.session_state.respondido = False
+                                            st.session_state.opcoes_atuais = []
+                                            st.session_state.duelo_iniciado_em = time.time()
+                                            st.session_state.duelo_aposta = None
+                                            st.session_state.duelo_torneio_partida_id = pid
+                                            st.session_state.tela = "duelo_jogando"
+                                            st.rerun()
+                                    else:
+                                        # É o primeiro a jogar: cria duelo como desafiante
+                                        ids = gerar_questoes_duelo(nivel_max=nivel, n=DUELO_QUESTOES)
+                                        st.session_state.duelo_id = None
+                                        st.session_state.duelo_modo = "desafiante"
+                                        st.session_state.duelo_questoes = carregar_questoes(ids)
+                                        st.session_state.duelo_oponente_id = oponente_id
+                                        st.session_state.duelo_idx = 0
+                                        st.session_state.duelo_score = 0
+                                        st.session_state.respondido = False
+                                        st.session_state.opcoes_atuais = []
+                                        st.session_state.duelo_iniciado_em = time.time()
+                                        st.session_state.duelo_aposta = None
+                                        st.session_state.duelo_torneio_partida_id = pid
+                                        st.session_state.tela = "duelo_jogando"
+                                        st.rerun()
+                        else:
+                            # Alguma das duas partes pode ser o desafiado de um duelo já criado
+                            if duelo_id:
+                                dl = carregar_duelo(duelo_id)
+                                if dl and dl[7] == 'aguardando_desafiado':
+                                    st.markdown(f"<div class='ranking-box' style='border-left-color:#888;'><b>{j1n_disp}</b> vs <b>{j2n_disp}</b><br><small>Desafiante já jogou. Aguardando oponente.</small></div>", unsafe_allow_html=True)
+                                else:
+                                    st.markdown(f"<div class='ranking-box' style='border-left-color:#888;'><b>{j1n_disp}</b> vs <b>{j2n_disp}</b> ⏳</div>", unsafe_allow_html=True)
+                            else:
+                                st.markdown(f"<div class='ranking-box' style='border-left-color:#888;'><b>{j1n_disp}</b> vs <b>{j2n_disp}</b> ⏳</div>", unsafe_allow_html=True)
+                    else:
+                        st.markdown(f"<div class='ranking-box' style='border-left-color:#444;'><i>Aguardando vencedores das partidas anteriores</i></div>", unsafe_allow_html=True)
+
+# =========================================================
+# TELA: PERFIL DO ALUNO
+# =========================================================
+elif st.session_state.tela == "perfil":
+    perfil_id = st.session_state.get("perfil_id", st.session_state.uid)
+    aluno = consultar_um("""
+        SELECT id, nome, xp_total, streak, melhor_streak, ultimo_acesso, criado_em,
+               vitorias_duelo, derrotas_duelo, empates_duelo,
+               streak_vitorias_duelo, melhor_streak_vitorias_duelo
+        FROM alunos WHERE id = ?
+    """, (perfil_id,))
+    if not aluno:
+        st.error("Aluno não encontrado.")
+        if st.button("⬅️ Voltar"):
+            reset_para_inicio(); st.rerun()
+    else:
+        (pid, nome, xp, streak, melhor_streak, ult_acesso, criado,
+         vit_d, der_d, emp_d, streak_v, melhor_streak_v) = aluno
+        is_self = (pid == st.session_state.uid)
+
+        # Header com avatar grande + nível
+        nivel_idx, nivel_nome, xp_no_nivel, xp_proximo = info_nivel(xp)
+        pct_nivel = int(100 * xp_no_nivel / xp_proximo) if xp_proximo else 100
+        avatar_grande = render_avatar(nome, 88)
+
+        st.markdown(
+            f"<div class='premium-card' style='display:flex;align-items:center;gap:20px;'>"
+            f"{avatar_grande}"
+            f"<div style='flex:1;'>"
+            f"<h1 style='margin:0 0 4px;font-family:Sora,sans-serif;'>{nome}</h1>"
+            f"<div style='color:var(--text-dim);font-size:1.05rem;margin-bottom:10px;'>{nivel_nome}"
+            + (f" &nbsp;·&nbsp; <span style='color:var(--accent);'>🔥 streak {streak or 0}</span>" if streak and streak > 0 else "")
+            + f"</div>"
+            f"<div style='background:var(--border);height:8px;border-radius:4px;overflow:hidden;'>"
+            f"<div style='background:linear-gradient(90deg, var(--primary), var(--primary-light));height:100%;width:{pct_nivel}%;transition:width 0.6s;'></div></div>"
+            f"<div style='font-size:0.8rem;color:var(--text-muted);margin-top:4px;'>{xp_no_nivel} / {xp_proximo} XP pro próximo nível</div>"
+            f"</div></div>",
+            unsafe_allow_html=True
+        )
+
+        st.markdown("<br>", unsafe_allow_html=True)
+
+        # Stats principais
+        licoes_done = consultar_um("SELECT COUNT(*) FROM progresso WHERE aluno_id = ?", (pid,))[0]
+        badges_qtd = consultar_um("SELECT COUNT(*) FROM conquistas WHERE aluno_id = ?", (pid,))[0]
+
+        sa, sb, sc, sd = st.columns(4)
+        with sa: st.markdown(f"<div class='stat-box'><div class='stat-num'>{xp}</div><div class='stat-label'>XP Total</div></div>", unsafe_allow_html=True)
+        with sb: st.markdown(f"<div class='stat-box'><div class='stat-num'>🔥 {melhor_streak or 0}</div><div class='stat-label'>Melhor Streak</div></div>", unsafe_allow_html=True)
+        with sc: st.markdown(f"<div class='stat-box'><div class='stat-num'>{licoes_done}</div><div class='stat-label'>Lições</div></div>", unsafe_allow_html=True)
+        with sd: st.markdown(f"<div class='stat-box'><div class='stat-num'>🏅 {badges_qtd}</div><div class='stat-label'>Conquistas</div></div>", unsafe_allow_html=True)
+
+        st.markdown("<br>", unsafe_allow_html=True)
+
+        # Stats de duelo
+        st.markdown("### 🥊 Duelos")
+        v_d, d_d, e_d = vit_d or 0, der_d or 0, emp_d or 0
+        total_duelos = v_d + d_d + e_d
+        aprov = f"{int(100*v_d/total_duelos)}%" if total_duelos else "—"
+        d1, d2, d3, d4, d5 = st.columns(5)
+        with d1: st.markdown(f"<div class='stat-box'><div class='stat-num'>🏆 {v_d}</div><div class='stat-label'>Vitórias</div></div>", unsafe_allow_html=True)
+        with d2: st.markdown(f"<div class='stat-box'><div class='stat-num'>💀 {d_d}</div><div class='stat-label'>Derrotas</div></div>", unsafe_allow_html=True)
+        with d3: st.markdown(f"<div class='stat-box'><div class='stat-num'>🤝 {e_d}</div><div class='stat-label'>Empates</div></div>", unsafe_allow_html=True)
+        with d4: st.markdown(f"<div class='stat-box'><div class='stat-num'>{aprov}</div><div class='stat-label'>Aproveitamento</div></div>", unsafe_allow_html=True)
+        with d5: st.markdown(f"<div class='stat-box'><div class='stat-num'>⚡ {melhor_streak_v or 0}</div><div class='stat-label'>Melhor Sequência</div></div>", unsafe_allow_html=True)
+
+        st.markdown("<br>", unsafe_allow_html=True)
+
+        # Conquistas
+        st.markdown("### 🏅 Conquistas")
+        obtidas = {r[0] for r in consultar("SELECT badge_id FROM conquistas WHERE aluno_id = ?", (pid,))}
+        cols = st.columns(4)
+        for i, (bid, (icone, nm_b, desc)) in enumerate(BADGES.items()):
+            with cols[i % 4]:
+                cls = "badge-card" if bid in obtidas else "badge-card badge-locked"
+                st.markdown(
+                    f"<div class='{cls}'><div style='font-size:1.8rem'>{icone}</div>"
+                    f"<b style='font-size:0.85rem;'>{nm_b}</b><br>"
+                    f"<small style='color:var(--text-muted);font-size:0.7rem;'>{desc}</small></div>",
+                    unsafe_allow_html=True
+                )
+
+        st.markdown("<br>", unsafe_allow_html=True)
+
+        # Últimos duelos
+        st.markdown("### 📜 Últimos duelos")
+        hist = duelos_finalizados(pid, limite=5)
+        if not hist:
+            st.caption("Nenhum duelo finalizado ainda.")
+        for d_id, oponente, meu_score, score_op, vencedor_id, quando in hist:
+            if vencedor_id is None:
+                emoji, cor, status = "🤝", "var(--accent)", "Empate"
+            elif vencedor_id == pid:
+                emoji, cor, status = "🏆", "var(--primary)", "Vitória"
+            else:
+                emoji, cor, status = "💀", "var(--danger)", "Derrota"
+            st.markdown(
+                f"<div class='ranking-box' style='border-left-color:{cor};display:flex;align-items:center;gap:12px;'>"
+                f"{render_avatar(oponente, 36)}"
+                f"<div style='flex:1;'>{emoji} <b>{status}</b> contra <b>{oponente}</b> — {meu_score} x {score_op}<br>"
+                f"<small style='color:var(--text-muted);'>{quando}</small></div></div>",
+                unsafe_allow_html=True
+            )
+
+        # Meta
+        st.markdown(
+            f"<div style='margin-top:18px;padding:12px;background:var(--surface);border-radius:10px;"
+            f"border:1px solid var(--border);font-size:0.85rem;color:var(--text-muted);'>"
+            f"<b style='color:var(--text-dim);'>Membro desde:</b> {criado or '—'} · "
+            f"<b style='color:var(--text-dim);'>Último acesso:</b> {ult_acesso or '—'}"
+            f"</div>",
+            unsafe_allow_html=True
+        )
+
+# =========================================================
+# TELA: ONBOARDING (novo aluno)
+# =========================================================
+elif st.session_state.tela == "onboarding":
+    slide = st.session_state.get("onboarding_slide", 0)
+    slides = [
+        {
+            "icone": LOGO_SVG,
+            "titulo": f"Bem-vindo, {st.session_state.get('aluno', '')}!",
+            "texto": "Aqui no <b>Sheep Teacher</b> você aprende inglês completando lições temáticas — gramática, vocabulário, frases bíblicas e muito mais.",
+            "extra": "Cada módulo tem várias fases. Comece pelos básicos e desbloqueie os avançados."
+        },
+        {
+            "icone": "<div style='font-size:5rem;text-align:center;'>🏆</div>",
+            "titulo": "Ganhe XP, suba de nível",
+            "texto": "Cada acerto vale <b>XP</b>. Acumule XP pra subir de nível: 🌱 Iniciante → 📚 Aprendiz → ✍️ Estudante → 🎓 Avançado → 🏆 Mestre → 👑 Sábio → ⭐ Lenda.",
+            "extra": "Desbloqueie conquistas, apareça no ranking e mostre que está evoluindo!"
+        },
+        {
+            "icone": "<div style='font-size:5rem;text-align:center;'>🔥</div>",
+            "titulo": "Estude todo dia",
+            "texto": "Entre <b>todo dia</b> pra manter seu streak 🔥. Quanto mais dias seguidos, mais conquistas desbloqueia.",
+            "extra": "Tem também duelos contra amigos 🥊, torneios eliminatórios 🏆 e o desafio diário 🎁 — vale +25 XP bônus por dia!"
+        },
+    ]
+
+    c1, c2, c3 = st.columns([1, 3, 1])
+    with c2:
+        s = slides[slide]
+        st.markdown(
+            f"<div class='premium-card' style='text-align:center;'>"
+            f"<div class='logo-wrap' style='margin:8px 0 20px;'>{s['icone']}</div>"
+            f"<h1 style='font-family:Sora;'>{s['titulo']}</h1>"
+            f"<p style='font-size:1.1rem;color:var(--text-dim);line-height:1.6;max-width:480px;margin:14px auto;'>{s['texto']}</p>"
+            f"<p style='font-size:0.95rem;color:var(--text-muted);max-width:480px;margin:0 auto;'>{s['extra']}</p>"
+            f"</div>",
+            unsafe_allow_html=True
+        )
+
+        # Dots de progresso
+        dots = "".join([
+            f"<span style='display:inline-block;width:10px;height:10px;border-radius:50%;margin:0 4px;"
+            f"background:{'var(--primary)' if i == slide else 'var(--border-light)'};'></span>"
+            for i in range(len(slides))
+        ])
+        st.markdown(f"<div style='text-align:center;margin:20px 0;'>{dots}</div>", unsafe_allow_html=True)
+
+        bc1, bc2 = st.columns(2)
+        with bc1:
+            if slide > 0:
+                if st.button("⬅️ Voltar", use_container_width=True, key="ob_back"):
+                    st.session_state.onboarding_slide = slide - 1
+                    st.rerun()
+            else:
+                if st.button("Pular →", use_container_width=True, key="ob_skip"):
+                    st.session_state.onboarding_slide = 0
+                    reset_para_inicio(); st.rerun()
+        with bc2:
+            if slide < len(slides) - 1:
+                if st.button("Próximo ➡️", use_container_width=True, key="ob_next"):
+                    st.session_state.onboarding_slide = slide + 1
+                    st.rerun()
+            else:
+                if st.button("🚀 Começar a aprender", use_container_width=True, key="ob_done"):
+                    st.session_state.onboarding_slide = 0
+                    reset_para_inicio(); st.rerun()
 
 # =========================================================
 # TELA: CONCLUSÃO
@@ -1574,7 +2679,7 @@ elif st.session_state.tela == "conclusao_trilha":
         st.markdown("### 🏅 Você desbloqueou:")
         for bid in novas:
             icone, nome, desc = BADGES[bid]
-            st.markdown(f"<div class='badge-card' style='border-color:lime;'><div style='font-size:2rem'>{icone}</div><b>{nome}</b><br><small>{desc}</small></div>", unsafe_allow_html=True)
+            st.markdown(f"<div class='badge-card' style='border-color:var(--primary);'><div style='font-size:2rem'>{icone}</div><b>{nome}</b><br><small>{desc}</small></div>", unsafe_allow_html=True)
     if st.button("Voltar ao Menu"):
         st.session_state.conquistas_novas = []
         reset_para_inicio(); st.rerun()
