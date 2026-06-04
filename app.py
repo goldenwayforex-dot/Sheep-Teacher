@@ -30,28 +30,54 @@ try:
 except ImportError:
     SPELL_OK = False
 
-# anthropic é opcional - se faltar OU sem API key, o chat com Sheep fica desabilitado
+# anthropic é opcional - se faltar OU sem API key, esse provedor fica desabilitado
 try:
     import anthropic
     ANTHROPIC_LIB_OK = True
 except ImportError:
     ANTHROPIC_LIB_OK = False
 
+# google-generativeai é opcional - permite usar o Gemini (free tier generoso)
+try:
+    import google.generativeai as genai
+    GEMINI_LIB_OK = True
+except ImportError:
+    GEMINI_LIB_OK = False
+
+CHAT_MODEL_GEMINI = "gemini-2.0-flash"           # Gratuito: 1M tokens/dia
+CHAT_MODEL_ANTHROPIC = "claude-haiku-4-5-20251001"  # Pago: ~$0.001/msg
+
+def _get_secret_or_env(chave):
+    """Busca uma chave em st.secrets (Streamlit Cloud) ou variável de ambiente."""
+    try:
+        if hasattr(st, "secrets") and chave in st.secrets:
+            return st.secrets[chave]
+    except Exception:
+        pass
+    import os
+    return os.environ.get(chave)
+
+def get_gemini_model(system_prompt):
+    """Retorna um modelo Gemini configurado ou None se não disponível."""
+    if not GEMINI_LIB_OK:
+        return None
+    api_key = _get_secret_or_env("GEMINI_API_KEY") or _get_secret_or_env("GOOGLE_API_KEY")
+    if not api_key:
+        return None
+    try:
+        genai.configure(api_key=api_key)
+        return genai.GenerativeModel(
+            model_name=CHAT_MODEL_GEMINI,
+            system_instruction=system_prompt
+        )
+    except Exception:
+        return None
+
 def get_anthropic_client():
     """Retorna cliente Anthropic se configurado, senão None."""
     if not ANTHROPIC_LIB_OK:
         return None
-    api_key = None
-    # 1ª opção: st.secrets (Streamlit Cloud)
-    try:
-        if hasattr(st, "secrets") and "ANTHROPIC_API_KEY" in st.secrets:
-            api_key = st.secrets["ANTHROPIC_API_KEY"]
-    except Exception:
-        pass
-    # 2ª opção: variável de ambiente
-    if not api_key:
-        import os
-        api_key = os.environ.get("ANTHROPIC_API_KEY")
+    api_key = _get_secret_or_env("ANTHROPIC_API_KEY")
     if not api_key:
         return None
     try:
@@ -59,8 +85,44 @@ def get_anthropic_client():
     except Exception:
         return None
 
-CHAT_OK = ANTHROPIC_LIB_OK  # Vamos checar a key em runtime
-CHAT_MODEL = "claude-haiku-4-5-20251001"  # rápido e barato
+def _msgs_para_gemini(messages):
+    """Converte mensagens estilo Anthropic (user/assistant) pra estilo Gemini (user/model)."""
+    return [
+        {
+            "role": "model" if m["role"] == "assistant" else "user",
+            "parts": [{"text": m["content"]}]
+        }
+        for m in messages
+    ]
+
+def chat_com_ia(messages, system_prompt, max_tokens=400):
+    """Tenta Gemini (grátis) primeiro, depois Anthropic. Retorna (texto, provedor)."""
+    # 1ª tentativa: Gemini (grátis)
+    gem = get_gemini_model(system_prompt)
+    if gem is not None:
+        contents = _msgs_para_gemini(messages)
+        response = gem.generate_content(
+            contents,
+            generation_config={"max_output_tokens": max_tokens, "temperature": 0.8}
+        )
+        return response.text, "gemini"
+
+    # 2ª tentativa: Anthropic (pago)
+    ant = get_anthropic_client()
+    if ant is not None:
+        response = ant.messages.create(
+            model=CHAT_MODEL_ANTHROPIC,
+            max_tokens=max_tokens,
+            system=system_prompt,
+            messages=messages
+        )
+        return response.content[0].text, "anthropic"
+
+    raise RuntimeError("Nenhuma API de chat configurada")
+
+def chat_disponivel():
+    """True se pelo menos um provedor está configurado."""
+    return (get_gemini_model("test") is not None) or (get_anthropic_client() is not None)
 
 SHEEP_SYSTEM_PROMPT = """You are "Sheep" 🐑, a friendly English conversation tutor at Bethany Church English School in Marília, Brazil. Your students are Brazilian Portuguese speakers (mostly beginners and intermediates) practicing conversational English in a faith-friendly environment.
 
@@ -4045,33 +4107,58 @@ elif st.session_state.tela == "chat_sheep":
         unsafe_allow_html=True
     )
 
-    # Checa se chat tá disponível
-    client = get_anthropic_client() if CHAT_OK else None
-    if not ANTHROPIC_LIB_OK:
-        st.warning("⚠️ Biblioteca `anthropic` não instalada. Adicione `anthropic>=0.40` ao requirements.txt.")
-    elif client is None:
-        st.warning("⚠️ Chave da API Anthropic não configurada.")
-        with st.expander("🔑 Como configurar (uma vez só)"):
+    # Detecta provedor disponível
+    gem_disp = get_gemini_model(SHEEP_SYSTEM_PROMPT) is not None
+    ant_disp = get_anthropic_client() is not None
+    nenhum = not (gem_disp or ant_disp)
+
+    if nenhum:
+        if not (GEMINI_LIB_OK or ANTHROPIC_LIB_OK):
+            st.warning("⚠️ Bibliotecas de IA não instaladas. Adicione ao `requirements.txt`: `google-generativeai>=0.8` (grátis) ou `anthropic>=0.40` (pago).")
+        else:
+            st.warning("⚠️ Nenhuma chave de API configurada. Veja abaixo como ativar (uma vez só).")
+
+        with st.expander("🎁 Opção 1 — Google Gemini (RECOMENDADO, GRÁTIS)", expanded=True):
             st.markdown("""
-1. Crie uma conta gratuita em **https://console.anthropic.com/**
-2. Vá em **API Keys** e clique em **Create Key**
-3. Copie a chave (começa com `sk-ant-...`)
-4. No painel do Streamlit Cloud, clique em **⚙️ Settings → Secrets** do seu app
+**Google dá 1 milhão de tokens por dia, grátis.** Pra uma escola com 30-50 alunos, é mais que suficiente — você nunca vai bater o limite.
+
+1. Vá em **https://aistudio.google.com/apikey** (entre com sua conta Google)
+2. Clique em **"Create API key"**
+3. Copie a chave (começa com `AIzaSy...`)
+4. No painel do **Streamlit Cloud**, abra seu app → **⚙️ Settings → Secrets**
 5. Adicione esta linha:
+   ```
+   GEMINI_API_KEY = "AIzaSy-sua-chave-aqui"
+   ```
+6. Salve. O app reinicia e o chat passa a funcionar.
+
+**Custo:** 0,00 USD. Não pede cartão de crédito.
+""")
+
+        with st.expander("💼 Opção 2 — Anthropic Claude (pago, mais inteligente)"):
+            st.markdown("""
+Se quiser mais qualidade nas respostas (Claude é mais sofisticado), use a Anthropic.
+
+1. Crie conta em **https://console.anthropic.com/**
+2. Vá em **API Keys → Create Key**, copie (começa com `sk-ant-...`)
+3. No Streamlit Cloud, adicione nos Secrets:
    ```
    ANTHROPIC_API_KEY = "sk-ant-sua-chave-aqui"
    ```
-6. Salve. O app reinicia automaticamente e o chat passa a funcionar.
 
-**Custo:** ~$0,01 USD por conversa de 10 mensagens (Claude Haiku). Anthropic dá créditos iniciais grátis.
+**Custo:** ~$0,01 USD por conversa de 10 mensagens (Claude Haiku). Anthropic dá US$5 de crédito inicial.
 """)
+        st.caption("💡 **Dica:** comece pelo Gemini (grátis) e veja se atende. A qualidade é ótima pra conversação básica.")
     else:
+        provedor = "gemini" if gem_disp else "anthropic"
+        badge_provedor = "🎁 via Gemini (grátis)" if provedor == "gemini" else "💼 via Anthropic Claude"
+        st.caption(f"Conectada: <span style='color:var(--primary);'>{badge_provedor}</span>", unsafe_allow_html=True)
+
         # Inicializa histórico
         if "chat_messages" not in st.session_state:
             st.session_state.chat_messages = []
 
         # Saudação inicial (mostrada visualmente, mas NÃO enviada à API)
-        # Se já tem mensagens, mostra todas; senão mostra só a saudação
         if not st.session_state.chat_messages:
             with st.chat_message("assistant", avatar="🐑"):
                 st.markdown(f"Hi, **{nome_aluno}**! I'm Sheep 🐑. I'm here to chat with you in English. "
@@ -4083,7 +4170,7 @@ elif st.session_state.tela == "chat_sheep":
                 with st.chat_message(msg["role"], avatar=avatar):
                     st.markdown(msg["content"])
 
-        # Input - st.chat_input cuida do Enter pra enviar
+        # Input
         if prompt := st.chat_input("Type in English..."):
             # Adiciona mensagem do aluno
             st.session_state.chat_messages.append({"role": "user", "content": prompt.strip()})
@@ -4092,19 +4179,12 @@ elif st.session_state.tela == "chat_sheep":
             with st.chat_message("user"):
                 st.markdown(prompt.strip())
 
-            # Chama API
+            # Chama IA
             try:
-                # Limita ao histórico recente pra controlar custo (últimas 30 mensagens = 15 trocas)
-                msgs_para_api = st.session_state.chat_messages[-30:]
+                msgs_para_api = st.session_state.chat_messages[-30:]  # últimas 30 msgs
                 with st.chat_message("assistant", avatar="🐑"):
                     with st.spinner("Sheep está pensando..."):
-                        response = client.messages.create(
-                            model=CHAT_MODEL,
-                            max_tokens=400,
-                            system=SHEEP_SYSTEM_PROMPT,
-                            messages=msgs_para_api
-                        )
-                        bot_reply = response.content[0].text
+                        bot_reply, _provedor_usado = chat_com_ia(msgs_para_api, SHEEP_SYSTEM_PROMPT, max_tokens=400)
                         st.markdown(bot_reply)
 
                 st.session_state.chat_messages.append({"role": "assistant", "content": bot_reply})
@@ -4112,18 +4192,20 @@ elif st.session_state.tela == "chat_sheep":
                 # XP por enviar mensagem
                 executar("UPDATE alunos SET xp_total = xp_total + 5 WHERE id = ?", (uid,))
                 verificar_conquistas(uid)
-
                 st.rerun()
-            except anthropic.APIConnectionError:
-                st.error("Erro de conexão com a IA. Verifique sua internet e tente de novo.")
-            except anthropic.AuthenticationError:
-                st.error("Chave da API inválida. Verifique o `ANTHROPIC_API_KEY` nos Secrets.")
-            except anthropic.RateLimitError:
-                st.warning("Muitas mensagens rápidas. Espere um instante e tente de novo.")
-            except Exception as e:
-                st.error(f"Algo deu errado: {type(e).__name__}. Tente novamente.")
 
-        # Footer: ações
+            except Exception as e:
+                msg_erro = str(e)
+                if "API_KEY_INVALID" in msg_erro or "401" in msg_erro or "authentication" in msg_erro.lower():
+                    st.error("Chave de API inválida. Verifique no painel de Secrets do Streamlit Cloud.")
+                elif "quota" in msg_erro.lower() or "429" in msg_erro or "rate" in msg_erro.lower():
+                    st.warning("Cota da API esgotada ou muitas mensagens. Tente de novo em alguns segundos.")
+                elif "connection" in msg_erro.lower() or "timeout" in msg_erro.lower():
+                    st.error("Erro de conexão. Verifique sua internet e tente de novo.")
+                else:
+                    st.error(f"Algo deu errado: {type(e).__name__}. Mensagem: {msg_erro[:200]}")
+
+        # Footer
         st.markdown("<br>", unsafe_allow_html=True)
         ca, cb, cc = st.columns([1, 1, 2])
         with ca:
@@ -4133,12 +4215,11 @@ elif st.session_state.tela == "chat_sheep":
                 st.rerun()
         with cb:
             n_user = sum(1 for m in st.session_state.chat_messages if m["role"] == "user")
-            if st.button(f"📊 {n_user} mensagens", use_container_width=True, disabled=True,
-                         help="Mensagens enviadas nesta conversa"):
-                pass
+            st.markdown(f"<div style='text-align:center;padding-top:10px;color:var(--text-dim);font-size:0.9rem;'>"
+                        f"💬 <b>{n_user}</b> mensagens enviadas</div>", unsafe_allow_html=True)
         with cc:
-            st.caption("💡 Dica: tente fazer perguntas, falar do seu dia, da sua família, da igreja. "
-                       "Sheep adapta a conversa ao seu nível.")
+            st.caption("💡 Tente perguntar sobre seu dia, família, igreja, sonhos. "
+                       "Sheep adapta o inglês ao seu nível.")
 
 # =========================================================
 # TELA: CONCLUSÃO
