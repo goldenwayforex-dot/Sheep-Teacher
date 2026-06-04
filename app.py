@@ -519,16 +519,92 @@ def hash_pin(pin: str) -> str:
     return hashlib.sha256(pin.encode("utf-8")).hexdigest()
 
 def botao_audio(texto: str, label: str = "🔊"):
-    # Usa JSON pra escapar com segurança: aspas, quebras, emojis, etc.
+    """Botão que toca o texto em inglês usando Web Speech API do navegador.
+    Robusto contra bugs comuns do Chrome (cancel+speak, vozes assíncronas, etc)."""
     safe_js = json.dumps(texto)
     html = f"""
-    <button class="audio-btn" onclick="
-        const u = new SpeechSynthesisUtterance({safe_js});
-        u.lang='en-US'; u.rate=0.92;
-        speechSynthesis.cancel(); speechSynthesis.speak(u);
-    ">{label}</button>
+    <button class="audio-btn" id="audio-btn-{abs(hash(texto)) % 100000}" onclick='playTTS({safe_js}, this)'>{label}</button>
+    <script>
+    if (typeof window.__sheepTTSReady === 'undefined') {{
+        window.__sheepTTSReady = true;
+
+        // Função global compartilhada entre todos os botões deste iframe
+        window.playTTS = function(text, btn) {{
+            const synth = window.speechSynthesis;
+            if (!synth) {{
+                alert('Seu navegador não suporta síntese de voz. Tente Chrome, Edge ou Safari atualizados.');
+                return;
+            }}
+
+            // Feedback visual no botão
+            const labelOriginal = btn.textContent;
+            btn.textContent = '🔊 ...';
+            btn.disabled = true;
+
+            const tryPlay = function(retries) {{
+                const voices = synth.getVoices();
+
+                // Vozes ainda não carregaram (bug clássico do Chrome no primeiro acesso)
+                if (voices.length === 0 && retries > 0) {{
+                    setTimeout(function() {{ tryPlay(retries - 1); }}, 200);
+                    return;
+                }}
+
+                // Cancela qualquer fala em andamento
+                if (synth.speaking || synth.pending) {{
+                    synth.cancel();
+                }}
+
+                // Pequeno timeout pra workaround do bug do Chrome
+                setTimeout(function() {{
+                    const u = new SpeechSynthesisUtterance(text);
+                    u.lang = 'en-US';
+                    u.rate = 0.92;
+                    u.pitch = 1.0;
+                    u.volume = 1.0;
+
+                    // Escolhe a melhor voz inglesa disponível
+                    const enVoices = voices.filter(function(v) {{ return v.lang.indexOf('en') === 0; }});
+                    if (enVoices.length > 0) {{
+                        const preferida = enVoices.find(function(v) {{
+                            return v.name.indexOf('Google') >= 0 ||
+                                   v.name.indexOf('Microsoft') >= 0 ||
+                                   v.name.indexOf('Samantha') >= 0 ||
+                                   v.name.indexOf('Alex') >= 0;
+                        }});
+                        u.voice = preferida || enVoices[0];
+                    }}
+
+                    u.onend = function() {{
+                        btn.textContent = labelOriginal;
+                        btn.disabled = false;
+                    }};
+                    u.onerror = function(e) {{
+                        btn.textContent = labelOriginal;
+                        btn.disabled = false;
+                        console.error('TTS error:', e);
+                        alert('Erro ao reproduzir áudio: ' + (e.error || 'desconhecido') +
+                              '. Verifique se o som do navegador está ligado.');
+                    }};
+
+                    synth.speak(u);
+
+                    // Fallback: se em 500ms não começou a falar, alerta
+                    setTimeout(function() {{
+                        if (!synth.speaking && !synth.pending) {{
+                            btn.textContent = labelOriginal;
+                            btn.disabled = false;
+                        }}
+                    }}, 3000);
+                }}, 100);
+            }};
+
+            tryPlay(10);
+        }};
+    }}
+    </script>
     """
-    st.components.v1.html(html, height=45)
+    st.components.v1.html(html, height=50)
 
 def exibir_ranking():
     st.markdown("#### 🏆 TOP 5")
@@ -2458,6 +2534,27 @@ def render_sidebar():
             st.session_state.tela = "perfil"; st.rerun()
 
         st.markdown("<hr style='border-color:var(--border);margin:14px 0 8px;'>", unsafe_allow_html=True)
+
+        # Diagnóstico de áudio - útil quando "fica mudo"
+        with st.expander("🔧 Áudio sem som?", expanded=False):
+            st.caption("Clica no teste abaixo. Se ouvir 'Hello, this is a test', está OK. "
+                       "Se aparecer alerta de erro, leia a mensagem — diz o que está errado.")
+            st.components.v1.html("""
+            <button class="audio-btn" style="width:100%;" onclick="
+                const synth = window.speechSynthesis;
+                if (!synth) { alert('Navegador não suporta síntese de voz.'); }
+                else {
+                    const voices = synth.getVoices();
+                    const lista = voices.map(v => v.name + ' (' + v.lang + ')').join('\\n');
+                    alert('Vozes disponíveis no seu navegador:\\n\\n' + (lista || 'Nenhuma carregada — recarregue a página') + '\\n\\nAgora vou tentar falar...');
+                    const u = new SpeechSynthesisUtterance('Hello, this is a test. If you can hear me, audio is working!');
+                    u.lang = 'en-US';
+                    u.onerror = (e) => alert('Erro: ' + e.error);
+                    synth.speak(u);
+                }
+            ">🔊 Testar áudio do navegador</button>
+            <style>.audio-btn{background:var(--surface,#131A22);color:#34D399;border:1.5px solid #10B981;border-radius:10px;padding:10px;font-weight:600;cursor:pointer;width:100%;}</style>
+            """, height=60)
         if st.button("🚪 Sair", use_container_width=True, key="sb_sair"):
             for k in ["tela", "aluno", "uid"]:
                 if k in st.session_state: del st.session_state[k]
