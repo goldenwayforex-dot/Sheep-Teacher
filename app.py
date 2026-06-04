@@ -4,6 +4,7 @@ import random
 import hashlib
 import json
 import time
+import re
 from datetime import date, datetime, timedelta
 
 # Reportlab é opcional - se faltar, os certificados PDF ficam desabilitados
@@ -15,6 +16,19 @@ try:
     REPORTLAB_OK = True
 except ImportError:
     REPORTLAB_OK = False
+
+# pyspellchecker é opcional - se faltar, corretor funciona só com regras
+try:
+    from spellchecker import SpellChecker
+    SPELL_OK = True
+    _SPELL_INSTANCE = None
+    def get_spell():
+        global _SPELL_INSTANCE
+        if _SPELL_INSTANCE is None:
+            _SPELL_INSTANCE = SpellChecker(language='en')
+        return _SPELL_INSTANCE
+except ImportError:
+    SPELL_OK = False
 
 # =========================================================
 # SHEEP TEACHER - Bethany Church English School
@@ -817,6 +831,34 @@ def marcar_desafio_completado(uid):
         (uid, hoje)
     )
 
+# --- CONVERSAÇÃO ---
+XP_CONVERSA_BASE = 10
+XP_CONVERSA_BONUS_SEM_ERROS = 5
+
+def salvar_resposta_conversa(uid, conversa_id, resposta, erros_qtd):
+    """Registra uma resposta de conversa no banco."""
+    executar(
+        "INSERT INTO conversas_respondidas (aluno_id, conversa_id, resposta, erros_qtd, respondido_em) VALUES (?,?,?,?,?)",
+        (uid, conversa_id, resposta, erros_qtd, date.today().isoformat())
+    )
+
+def historico_conversas(uid):
+    """Retorna lista de conversa_id que o aluno já respondeu."""
+    rows = consultar(
+        "SELECT DISTINCT conversa_id FROM conversas_respondidas WHERE aluno_id = ?",
+        (uid,)
+    )
+    return {r[0] for r in rows}
+
+def ultima_resposta_conversa(uid, conversa_id):
+    """Retorna a última resposta do aluno para essa conversa, ou None."""
+    r = consultar_um(
+        "SELECT resposta, erros_qtd, respondido_em FROM conversas_respondidas "
+        "WHERE aluno_id = ? AND conversa_id = ? ORDER BY id DESC LIMIT 1",
+        (uid, conversa_id)
+    )
+    return r  # (resposta, erros, data) ou None
+
 # =========================================================
 # TRILHA DE APRENDIZADO
 # (titulo, nivel, [ (fase, pergunta, correta, e1, e2, e3) ])
@@ -1311,6 +1353,211 @@ TRILHA = [
 ]
 
 # Explicações pedagógicas - só onde realmente ajuda (gramática)
+# =========================================================
+# MÓDULO DE CONVERSAÇÃO (perguntas abertas + corretor)
+# =========================================================
+CONVERSAS = [
+    {"id": "intro_nome", "icone": "👋", "tema": "Apresentação",
+     "pergunta_pt": "Como você se apresentaria a um americano? Diga seu nome e de onde é.",
+     "pergunta_en": "What is your name and where are you from?",
+     "dica": "Comece com 'My name is...' + 'I am from...'"},
+    {"id": "familia", "icone": "👨‍👩‍👧", "tema": "Família",
+     "pergunta_pt": "Fale sobre sua família. Quantos irmãos você tem?",
+     "pergunta_en": "Tell me about your family. How many brothers and sisters do you have?",
+     "dica": "Use 'I have...' pra dizer quantos irmãos. Pra idade, lembre: 'I AM X years old', não 'I have'."},
+    {"id": "rotina", "icone": "⏰", "tema": "Rotina",
+     "pergunta_pt": "Como é um dia normal seu? O que você costuma fazer?",
+     "pergunta_en": "What do you usually do on a normal day?",
+     "dica": "'I wake up...', 'I work...', 'I eat...', 'I sleep...'. Use o presente simples."},
+    {"id": "comida", "icone": "🍽️", "tema": "Comida",
+     "pergunta_pt": "Qual sua comida favorita? Por que você gosta dela?",
+     "pergunta_en": "What is your favorite food? Why do you like it?",
+     "dica": "'My favorite food is...' + 'I like it because...'"},
+    {"id": "domingo_igreja", "icone": "⛪", "tema": "Igreja",
+     "pergunta_pt": "Conte o que você faz no domingo na igreja.",
+     "pergunta_en": "What do you do at church on Sunday?",
+     "dica": "'I go to church', 'I sing', 'I pray', 'I listen to the sermon'."},
+    {"id": "oracao", "icone": "🙏", "tema": "Fé",
+     "pergunta_pt": "Como e quando você costuma orar?",
+     "pergunta_en": "How and when do you usually pray?",
+     "dica": "'I pray every day', 'I pray when...', 'I thank God for...', 'I ask God for...'"},
+    {"id": "versiculo", "icone": "📖", "tema": "Bíblia",
+     "pergunta_pt": "Qual seu versículo favorito? Por quê?",
+     "pergunta_en": "What is your favorite Bible verse and why?",
+     "dica": "'My favorite verse is...' + diga onde está ('It is in Psalms', 'It is from John...')."},
+    {"id": "amanha", "icone": "🔜", "tema": "Futuro",
+     "pergunta_pt": "O que você vai fazer amanhã?",
+     "pergunta_en": "What are you going to do tomorrow?",
+     "dica": "Use 'I am going to...' + verbo no infinitivo."},
+    {"id": "domingo_passado", "icone": "⏪", "tema": "Passado",
+     "pergunta_pt": "O que você fez no domingo passado?",
+     "pergunta_en": "What did you do last Sunday?",
+     "dica": "Use verbos no passado: 'I went...', 'I ate...', 'I prayed...', 'I sang...'"},
+    {"id": "boas_vindas", "icone": "👫", "tema": "Recepção",
+     "pergunta_pt": "Um amigo americano visita sua casa. O que você diz pra recebê-lo?",
+     "pergunta_en": "An American friend visits your home. What do you say to welcome them?",
+     "dica": "'Welcome!', 'Come in', 'Please sit down', 'Would you like some water?'"},
+    {"id": "sentimento_hoje", "icone": "💗", "tema": "Sentimentos",
+     "pergunta_pt": "Como você está se sentindo hoje e por quê?",
+     "pergunta_en": "How are you feeling today and why?",
+     "dica": "'I am feeling happy/sad/tired because...' Use TO BE, não HAVE."},
+    {"id": "testemunho", "icone": "✨", "tema": "Testemunho",
+     "pergunta_pt": "Conte um momento em que você sentiu Deus na sua vida.",
+     "pergunta_en": "Tell me about a moment when you felt God in your life.",
+     "dica": "Use passado: 'I felt God when...', 'I was praying and...', 'God helped me when...'"},
+    {"id": "amigo_triste", "icone": "🫂", "tema": "Aconselhamento",
+     "pergunta_pt": "Um amigo está triste. O que você diria pra encorajá-lo?",
+     "pergunta_en": "A friend is feeling sad. What would you say to encourage them?",
+     "dica": "'Don't worry', 'God loves you', 'I am here for you', 'You are not alone'."},
+    {"id": "sonho", "icone": "⭐", "tema": "Sonhos",
+     "pergunta_pt": "Qual seu maior sonho na vida?",
+     "pergunta_en": "What is your biggest dream in life?",
+     "dica": "'My dream is to...' + verbo. Ex: 'My dream is to travel...'"},
+    {"id": "gratidao", "icone": "🌟", "tema": "Gratidão",
+     "pergunta_pt": "Pelo que você é mais grato hoje?",
+     "pergunta_en": "What are you most thankful for today?",
+     "dica": "'I am thankful for...' + nome ou verbo no -ing."},
+]
+
+# Termos da igreja/bíblicos que o spellchecker pode marcar erradamente
+WHITELIST_SPELL = {
+    "hallelujah", "amen", "pastor", "messiah", "savior", "gospel",
+    "psalms", "proverbs", "deuteronomy", "leviticus", "ecclesiastes",
+    "exodus", "isaiah", "jeremiah", "ezekiel", "philippians", "ephesians",
+    "galatians", "thessalonians", "philemon", "hebrews", "revelation",
+    "jesus", "christ", "moses", "noah", "abraham", "isaac", "jacob",
+    "joseph", "mary", "magdalene", "nazareth", "bethlehem", "calvary",
+}
+
+def corrigir_ingles(texto):
+    """Analisa texto em inglês escrito por brasileiro. Retorna lista de problemas + sugestões."""
+    problemas = []
+    if not texto or not texto.strip():
+        return problemas
+    t = texto.strip()
+
+    # 1. Capitalização inicial
+    if t[0].islower():
+        problemas.append({
+            "tipo": "Capitalização",
+            "msg": "Frases em inglês começam com letra maiúscula.",
+            "exemplo": f"'{t[0]}...' → '{t[0].upper()}...'"
+        })
+
+    # 2. "i" sozinho deve ser "I" (pronome eu)
+    matches_i = re.findall(r'\bi\b', t)
+    if matches_i:
+        problemas.append({
+            "tipo": "Pronome I",
+            "msg": "O pronome 'I' (eu) é SEMPRE maiúsculo em inglês.",
+            "exemplo": "'i am happy' → 'I am happy'"
+        })
+
+    # 3. Verbo TO BE incorreto
+    if re.search(r'\bI\s+(are|is|be|were)\b', t, re.IGNORECASE):
+        problemas.append({
+            "tipo": "Verbo TO BE",
+            "msg": "Com 'I' use AM (presente) ou WAS (passado). Nunca is/are/be/were.",
+            "exemplo": "'I are happy' → 'I AM happy'"
+        })
+    if re.search(r'\b(he|she|it)\s+(are|am|were)\b', t, re.IGNORECASE):
+        problemas.append({
+            "tipo": "Verbo TO BE",
+            "msg": "Com he/she/it use IS (presente) ou WAS (passado).",
+            "exemplo": "'She are nice' → 'She IS nice'"
+        })
+    if re.search(r'\b(we|they|you)\s+(is|am|was)\b', t, re.IGNORECASE):
+        problemas.append({
+            "tipo": "Verbo TO BE",
+            "msg": "Com we/they/you use ARE (presente) ou WERE (passado).",
+            "exemplo": "'They is here' → 'They ARE here'"
+        })
+
+    # 4. Brasileirismo: "I have X years"
+    m = re.search(r'\b(I|he|she|you|we|they)\s+(have|has|had)\s+(\d+)\s+years?\b', t, re.IGNORECASE)
+    if m:
+        problemas.append({
+            "tipo": "Idade",
+            "msg": "Em inglês, idade usa TO BE: '___ AM/IS X years old' (não HAVE).",
+            "exemplo": f"'I have {m.group(3)} years' → 'I am {m.group(3)} years old'"
+        })
+
+    # 5. Brasileirismo: "I have hungry / cold / etc"
+    estados = ["hungry", "thirsty", "cold", "hot", "tired", "sleepy",
+               "scared", "afraid", "happy", "sad", "angry", "nervous"]
+    pat = r'\b(I|you|he|she|we|they)\s+(have|has|had)\s+(' + '|'.join(estados) + r')\b'
+    m = re.search(pat, t, re.IGNORECASE)
+    if m:
+        problemas.append({
+            "tipo": "Estado/Sentimento",
+            "msg": "Estados e sentimentos usam TO BE em inglês, não HAVE.",
+            "exemplo": f"'I have {m.group(3)}' → 'I AM {m.group(3)}'"
+        })
+
+    # 6. Concordância 3ª pessoa singular (he/she/it precisa de S no verbo)
+    verbos_terceira = ["work", "live", "love", "like", "play", "study", "read", "write",
+                       "eat", "drink", "go", "come", "do", "want", "need", "speak",
+                       "talk", "see", "watch", "sleep", "wake", "pray", "sing", "help",
+                       "ask", "tell", "give", "take", "make", "feel", "know", "think"]
+    pat3 = r'\b(he|she|it)\s+(' + '|'.join(verbos_terceira) + r')\b(?!s)'
+    if re.search(pat3, t, re.IGNORECASE):
+        problemas.append({
+            "tipo": "Concordância (he/she/it)",
+            "msg": "Com he/she/it, adicione S no fim do verbo: he WORKS, she PLAYS, it GOES.",
+            "exemplo": "'He work' → 'He works'"
+        })
+
+    # 7. Negação errada: "I no like"
+    if re.search(r'\b(I|you|we|they)\s+no\s+\w+', t, re.IGNORECASE):
+        problemas.append({
+            "tipo": "Negação",
+            "msg": "Pra negar verbos comuns com I/you/we/they: use DO NOT (don't) + verbo.",
+            "exemplo": "'I no like' → 'I do not like' (ou 'I don't like')"
+        })
+    if re.search(r'\b(he|she|it)\s+no\s+\w+', t, re.IGNORECASE):
+        problemas.append({
+            "tipo": "Negação",
+            "msg": "Pra negar com he/she/it: use DOES NOT (doesn't) + verbo (sem S).",
+            "exemplo": "'She no eat' → 'She does not eat'"
+        })
+
+    # 8. "Don't" com he/she/it (deveria ser "doesn't")
+    if re.search(r"\b(he|she|it)\s+(don't|do\s+not)\b", t, re.IGNORECASE):
+        problemas.append({
+            "tipo": "Negação 3ª pessoa",
+            "msg": "Com he/she/it use DOESN'T (não DON'T).",
+            "exemplo": "'She don't know' → 'She doesn't know'"
+        })
+
+    # 9. Ortografia (se spellchecker disponível)
+    if SPELL_OK:
+        try:
+            spell = get_spell()
+            palavras = re.findall(r"\b[a-zA-Z']+\b", t)
+            # Só verifica palavras minúsculas (evita nomes próprios)
+            candidatas = [w for w in palavras if len(w) > 2 and w.islower()
+                          and w not in WHITELIST_SPELL]
+            misspelled = spell.unknown(candidatas)
+            if misspelled:
+                sugestoes = []
+                for w in list(misspelled)[:5]:
+                    cor = spell.correction(w)
+                    if cor and cor != w:
+                        sugestoes.append(f"'{w}' → '{cor}'")
+                if sugestoes:
+                    problemas.append({
+                        "tipo": "Ortografia",
+                        "msg": "Possíveis erros de ortografia detectados:",
+                        "exemplo": ", ".join(sugestoes)
+                    })
+        except Exception:
+            pass  # silencia erros do spellchecker
+
+    return problemas
+
+# =========================================================
+# EXPLICAÇÕES PEDAGÓGICAS (lições gramaticais)
+# =========================================================
 EXPLICACOES = {
     ("Módulo 1: To Be - Presente", "Fase 1"): "Com 'I' usamos sempre 'am'. Nunca 'is' nem 'are'.",
     ("Módulo 1: To Be - Presente", "Fase 2"): "Com he, she, it usamos 'is'. (She IS, He IS, It IS).",
@@ -1402,6 +1649,14 @@ def iniciar_banco():
         licao_id INTEGER,
         completado INTEGER DEFAULT 0,
         PRIMARY KEY (aluno_id, data)
+    )''')
+    cur.execute('''CREATE TABLE IF NOT EXISTS conversas_respondidas (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        aluno_id INTEGER NOT NULL,
+        conversa_id TEXT NOT NULL,
+        resposta TEXT NOT NULL,
+        erros_qtd INTEGER DEFAULT 0,
+        respondido_em TEXT NOT NULL
     )''')
 
     # MIGRAÇÕES: tenta adicionar colunas novas se o banco for antigo
@@ -1766,6 +2021,8 @@ def render_sidebar():
             st.session_state.tela = "torneio_lista"; st.rerun()
         if st.button("🏅 Conquistas", use_container_width=True, key="sb_con"):
             st.session_state.tela = "conquistas"; st.rerun()
+        if st.button("💬 Conversação", use_container_width=True, key="sb_conv"):
+            st.session_state.tela = "conversacao_lista"; st.rerun()
         if st.button("👤 Meu Perfil", use_container_width=True, key="sb_per"):
             st.session_state.perfil_id = uid
             st.session_state.tela = "perfil"; st.rerun()
@@ -3198,6 +3455,209 @@ elif st.session_state.tela == "onboarding":
                 if st.button("🚀 Começar a aprender", use_container_width=True, key="ob_done"):
                     st.session_state.onboarding_slide = 0
                     reset_para_inicio(); st.rerun()
+
+# =========================================================
+# TELA: CONVERSAÇÃO - LISTA DE TÓPICOS
+# =========================================================
+elif st.session_state.tela == "conversacao_lista":
+    uid = st.session_state.uid
+    respondidas = historico_conversas(uid)
+
+    st.markdown(
+        "<div class='premium-card' style='display:flex;align-items:center;gap:18px;'>"
+        "<div style='font-size:3rem;'>💬</div>"
+        "<div><h1 style='margin:0;font-family:Sora,sans-serif;'>Conversação</h1>"
+        "<p class='subtitulo' style='margin:4px 0 0;'>Pratique inglês respondendo perguntas abertas. "
+        "Cada resposta é única — você ganha XP por se expressar, e o app te ajuda a corrigir erros.</p>"
+        "</div></div>",
+        unsafe_allow_html=True
+    )
+
+    # Status
+    st.markdown(
+        f"<div style='margin:18px 0 8px;color:var(--text-dim);'>"
+        f"Você já respondeu <b style='color:var(--primary);'>{len(respondidas)}</b> de <b>{len(CONVERSAS)}</b> conversas.</div>",
+        unsafe_allow_html=True
+    )
+    if not SPELL_OK:
+        st.info("ℹ️ Corretor de ortografia indisponível. O corretor de gramática continua funcionando.")
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    # Grid 2 colunas
+    cols = st.columns(2)
+    for i, conv in enumerate(CONVERSAS):
+        with cols[i % 2]:
+            ja_feita = conv["id"] in respondidas
+            status_html = ("<span style='color:var(--primary);font-weight:600;font-size:0.85rem;'>✅ Respondida</span>"
+                           if ja_feita else "<span style='color:var(--accent);font-weight:600;font-size:0.85rem;'>🎯 Disponível</span>")
+            st.markdown(
+                f"<div class='premium-card' style='padding:18px;margin-bottom:14px;"
+                f"border-left:3px solid {'var(--primary)' if ja_feita else 'var(--accent)'};'>"
+                f"<div style='display:flex;align-items:start;gap:14px;'>"
+                f"<div style='font-size:2rem;'>{conv['icone']}</div>"
+                f"<div style='flex:1;'><b style='font-size:1.05rem;'>{conv['tema']}</b>"
+                f"<br>{status_html}"
+                f"<p style='color:var(--text-dim);margin:8px 0 0;font-size:0.92rem;'>{conv['pergunta_pt']}</p>"
+                f"</div></div></div>",
+                unsafe_allow_html=True
+            )
+            btn_label = "🔁 Responder de novo" if ja_feita else "🎯 Responder"
+            if st.button(btn_label, key=f"conv_btn_{conv['id']}", use_container_width=True):
+                st.session_state.conversa_atual = conv["id"]
+                st.session_state.tela = "conversacao_pratica"
+                # Limpa estado anterior
+                for k in ["conv_resposta_enviada", "conv_problemas", "conv_xp_ganho"]:
+                    st.session_state.pop(k, None)
+                st.rerun()
+
+# =========================================================
+# TELA: CONVERSAÇÃO - PRÁTICA (responder + ver feedback)
+# =========================================================
+elif st.session_state.tela == "conversacao_pratica":
+    uid = st.session_state.uid
+    conv_id = st.session_state.get("conversa_atual")
+    conv = next((c for c in CONVERSAS if c["id"] == conv_id), None)
+
+    if not conv:
+        st.error("Conversa não encontrada.")
+        if st.button("⬅️ Voltar"):
+            st.session_state.tela = "conversacao_lista"; st.rerun()
+    else:
+        if st.button("⬅️ Voltar à lista de conversas"):
+            st.session_state.tela = "conversacao_lista"; st.rerun()
+
+        # Cabeçalho da pergunta
+        st.markdown(
+            f"<div class='premium-card' style='display:flex;align-items:center;gap:18px;'>"
+            f"<div style='font-size:3rem;'>{conv['icone']}</div>"
+            f"<div><div style='color:var(--text-dim);font-size:0.85rem;text-transform:uppercase;"
+            f"letter-spacing:1.5px;font-weight:600;'>{conv['tema']}</div>"
+            f"<h2 style='margin:4px 0;font-family:Sora,sans-serif;'>{conv['pergunta_pt']}</h2>"
+            f"<div style='color:var(--primary-light);font-size:1.05rem;font-style:italic;margin-top:4px;'>"
+            f"{conv['pergunta_en']}</div></div></div>",
+            unsafe_allow_html=True
+        )
+
+        # Botão de áudio da pergunta em inglês
+        col_a, col_b = st.columns([1, 6])
+        with col_a:
+            botao_audio(conv["pergunta_en"], "🔊 Ouvir")
+
+        # Dica
+        if conv.get("dica"):
+            st.markdown(
+                f"<div class='explicacao'>💡 <b>Dica:</b> {conv['dica']}</div>",
+                unsafe_allow_html=True
+            )
+
+        st.markdown("<br>", unsafe_allow_html=True)
+
+        # Se ainda não enviou, mostra textarea
+        if not st.session_state.get("conv_resposta_enviada"):
+            ultima = ultima_resposta_conversa(uid, conv_id)
+            txt_default = ""
+            if ultima:
+                st.caption(f"📌 Sua resposta anterior ({ultima[2]}): _{ultima[0]}_")
+            resposta = st.text_area(
+                "✏️ Sua resposta em inglês:",
+                value=txt_default,
+                height=140,
+                placeholder="Digite aqui sua resposta em inglês. Não precisa ser perfeita — o importante é praticar.",
+                key="conv_textarea"
+            )
+            c1, c2 = st.columns([1, 1])
+            with c1:
+                if st.button("📤 Enviar resposta", use_container_width=True, type="primary"):
+                    if not resposta or not resposta.strip():
+                        st.warning("Escreva alguma coisa antes de enviar 😊")
+                    elif len(resposta.strip()) < 3:
+                        st.warning("Tente escrever uma frase mais completa.")
+                    else:
+                        # Corrige e dá XP
+                        problemas = corrigir_ingles(resposta)
+                        erros_qtd = len(problemas)
+                        xp_ganho = XP_CONVERSA_BASE + (XP_CONVERSA_BONUS_SEM_ERROS if erros_qtd == 0 else 0)
+                        executar("UPDATE alunos SET xp_total = xp_total + ? WHERE id = ?", (xp_ganho, uid))
+                        salvar_resposta_conversa(uid, conv_id, resposta.strip(), erros_qtd)
+                        verificar_conquistas(uid)
+                        st.session_state.conv_resposta_enviada = resposta.strip()
+                        st.session_state.conv_problemas = problemas
+                        st.session_state.conv_xp_ganho = xp_ganho
+                        st.rerun()
+
+        else:
+            # Mostra feedback
+            resposta = st.session_state.conv_resposta_enviada
+            problemas = st.session_state.get("conv_problemas", [])
+            xp_ganho = st.session_state.get("conv_xp_ganho", XP_CONVERSA_BASE)
+
+            # Banner de XP
+            st.markdown(
+                f"<div style='background:linear-gradient(135deg, rgba(16,185,129,0.15), rgba(252,211,77,0.08));"
+                f"border:1px solid var(--primary);border-radius:14px;padding:18px 22px;margin-bottom:18px;"
+                f"display:flex;align-items:center;gap:16px;'>"
+                f"<div style='font-size:2.2rem;'>{'🌟' if not problemas else '✅'}</div>"
+                f"<div style='flex:1;'>"
+                f"<b style='color:var(--primary-light);font-size:1.15rem;'>"
+                f"{'Resposta perfeita! Sem erros detectados.' if not problemas else 'Resposta enviada! Veja as dicas abaixo.'}"
+                f"</b><br>"
+                f"<span class='xp-floating'>+{xp_ganho} XP</span>"
+                + (f" <span style='color:var(--gold);'>(inclui +{XP_CONVERSA_BONUS_SEM_ERROS} bônus por texto sem erros!)</span>" if not problemas else "")
+                + f"</div></div>",
+                unsafe_allow_html=True
+            )
+
+            # Mostra a resposta
+            st.markdown(
+                f"<div style='background:var(--surface);border:1px solid var(--border);"
+                f"border-radius:12px;padding:16px;margin-bottom:18px;'>"
+                f"<div style='color:var(--text-dim);font-size:0.8rem;text-transform:uppercase;"
+                f"letter-spacing:1.2px;font-weight:600;margin-bottom:6px;'>📝 Sua resposta:</div>"
+                f"<div style='font-size:1.05rem;color:var(--text);line-height:1.5;'>{resposta}</div>"
+                f"</div>",
+                unsafe_allow_html=True
+            )
+
+            # Lista de problemas
+            if problemas:
+                st.markdown(f"### 💡 {len(problemas)} dica(s) pra melhorar:")
+                for i, p in enumerate(problemas, 1):
+                    st.markdown(
+                        f"<div class='ranking-box' style='border-left-color:var(--accent);'>"
+                        f"<div style='display:flex;align-items:start;gap:12px;'>"
+                        f"<div style='background:var(--accent);color:white;border-radius:50%;"
+                        f"width:24px;height:24px;display:flex;align-items:center;justify-content:center;"
+                        f"font-weight:700;font-size:0.85rem;flex-shrink:0;'>{i}</div>"
+                        f"<div style='flex:1;'>"
+                        f"<b style='color:var(--gold);font-size:0.85rem;text-transform:uppercase;"
+                        f"letter-spacing:0.5px;'>{p['tipo']}</b><br>"
+                        f"<span style='color:var(--text);'>{p['msg']}</span><br>"
+                        f"<span style='color:var(--text-dim);font-size:0.9rem;font-style:italic;'>"
+                        f"📌 {p['exemplo']}</span>"
+                        f"</div></div></div>",
+                        unsafe_allow_html=True
+                    )
+                st.markdown("<br>", unsafe_allow_html=True)
+            else:
+                st.success("🎯 Texto bem escrito! Não detectei erros gramaticais comuns.")
+
+            # Botão pra ouvir a resposta dele em inglês (TTS)
+            botao_audio(resposta, "🔊 Ouvir sua resposta")
+
+            st.markdown("<br>", unsafe_allow_html=True)
+            cb1, cb2 = st.columns(2)
+            with cb1:
+                if st.button("🔁 Responder de novo", use_container_width=True):
+                    for k in ["conv_resposta_enviada", "conv_problemas", "conv_xp_ganho"]:
+                        st.session_state.pop(k, None)
+                    st.rerun()
+            with cb2:
+                if st.button("📋 Outras conversas", use_container_width=True, type="primary"):
+                    for k in ["conv_resposta_enviada", "conv_problemas", "conv_xp_ganho", "conversa_atual"]:
+                        st.session_state.pop(k, None)
+                    st.session_state.tela = "conversacao_lista"
+                    st.rerun()
 
 # =========================================================
 # TELA: CONCLUSÃO

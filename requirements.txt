@@ -1,2 +1,3 @@
 streamlit>=1.30
 reportlab>=4.0
+pyspellchecker>=0.7
