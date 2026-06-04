@@ -124,6 +124,101 @@ def chat_disponivel():
     """True se pelo menos um provedor está configurado."""
     return (get_gemini_model("test") is not None) or (get_anthropic_client() is not None)
 
+def diagnosticar_chat():
+    """Retorna lista de itens de diagnóstico (categoria, item, ok, detalhe)."""
+    items = []
+
+    # ---- GEMINI ----
+    items.append({
+        "categoria": "🎁 Gemini (grátis)",
+        "item": "Biblioteca google-generativeai instalada",
+        "ok": GEMINI_LIB_OK,
+        "detalhe": "Disponível e importada com sucesso" if GEMINI_LIB_OK
+                   else "Falta. Adicione 'google-generativeai>=0.8' ao requirements.txt no GitHub."
+    })
+
+    if GEMINI_LIB_OK:
+        key_gem = _get_secret_or_env("GEMINI_API_KEY") or _get_secret_or_env("GOOGLE_API_KEY")
+        items.append({
+            "categoria": "🎁 Gemini (grátis)",
+            "item": "Chave GEMINI_API_KEY configurada",
+            "ok": bool(key_gem),
+            "detalhe": (f"Encontrada (começa com '{key_gem[:8]}...', {len(key_gem)} caracteres no total)"
+                        if key_gem else
+                        "NÃO encontrada nos Secrets. Adicione a chave nos Settings → Secrets do app no Streamlit Cloud.")
+        })
+
+        if key_gem:
+            # Heurística de formato (apenas informativa - não bloqueia o teste de conexão)
+            formato_ok_heuristica = key_gem.startswith("AIzaSy") and 35 <= len(key_gem) <= 50
+            if formato_ok_heuristica:
+                items.append({
+                    "categoria": "🎁 Gemini (grátis)",
+                    "item": "Formato da chave (heurística)",
+                    "ok": True,
+                    "detalhe": "Formato típico de Google AI Studio (AIzaSy + ~33 chars). 👍"
+                })
+            else:
+                items.append({
+                    "categoria": "🎁 Gemini (grátis)",
+                    "item": "Formato da chave (heurística)",
+                    "ok": True,  # NÃO bloqueia - apenas avisa
+                    "detalhe": (f"⚠ Sua chave começa com '{key_gem[:6]}' e tem {len(key_gem)} caracteres. "
+                                f"As chaves típicas de https://aistudio.google.com/apikey começam com 'AIzaSy' "
+                                f"e têm ~39 chars. Vou testar a conexão mesmo assim — se funcionar, está OK.")
+                })
+
+            # Tentar conexão real (este é o teste DEFINITIVO)
+            try:
+                genai.configure(api_key=key_gem)
+                m = genai.GenerativeModel(CHAT_MODEL_GEMINI)
+                resp = m.generate_content("hi", generation_config={"max_output_tokens": 5})
+                _ = resp.text  # força avaliação
+                items.append({
+                    "categoria": "🎁 Gemini (grátis)",
+                    "item": "Teste de conexão com API (definitivo)",
+                    "ok": True,
+                    "detalhe": "Conectou e o modelo respondeu. Está tudo OK pra usar!"
+                })
+            except Exception as e:
+                msg = str(e)[:400]
+                sugestao = ""
+                if "API_KEY_INVALID" in msg or "API key not valid" in msg:
+                    sugestao = " → Sua chave foi rejeitada pelo Google. Gere uma nova em https://aistudio.google.com/apikey"
+                elif "PERMISSION_DENIED" in msg or "403" in msg:
+                    sugestao = " → A chave existe mas não tem permissão pro Gemini API. Provavelmente é de Vertex AI ou outro produto Google. Gere uma chave em https://aistudio.google.com/apikey (não no Cloud Console)."
+                elif "quota" in msg.lower() or "429" in msg:
+                    sugestao = " → Cota diária atingida. Espere 24h ou troque pra Anthropic."
+                elif "models/" in msg and "not found" in msg.lower():
+                    sugestao = " → Modelo não disponível pra essa chave. Pode ser uma chave restrita."
+                items.append({
+                    "categoria": "🎁 Gemini (grátis)",
+                    "item": "Teste de conexão com API (definitivo)",
+                    "ok": False,
+                    "detalhe": f"Falhou: {type(e).__name__}.{sugestao} | Mensagem completa: {msg}"
+                })
+
+    # ---- ANTHROPIC ----
+    items.append({
+        "categoria": "💼 Anthropic (pago)",
+        "item": "Biblioteca anthropic instalada",
+        "ok": ANTHROPIC_LIB_OK,
+        "detalhe": "Disponível e importada com sucesso" if ANTHROPIC_LIB_OK
+                   else "Falta. Adicione 'anthropic>=0.40' ao requirements.txt no GitHub."
+    })
+
+    if ANTHROPIC_LIB_OK:
+        key_ant = _get_secret_or_env("ANTHROPIC_API_KEY")
+        items.append({
+            "categoria": "💼 Anthropic (pago)",
+            "item": "Chave ANTHROPIC_API_KEY configurada",
+            "ok": bool(key_ant),
+            "detalhe": (f"Encontrada (começa com '{key_ant[:10]}...', {len(key_ant)} caracteres)"
+                        if key_ant else "NÃO encontrada nos Secrets. Opcional se você só vai usar Gemini.")
+        })
+
+    return items
+
 SHEEP_SYSTEM_PROMPT = """You are "Sheep" 🐑, a friendly English conversation tutor at Bethany Church English School in Marília, Brazil. Your students are Brazilian Portuguese speakers (mostly beginners and intermediates) practicing conversational English in a faith-friendly environment.
 
 YOUR PERSONALITY:
@@ -424,11 +519,12 @@ def hash_pin(pin: str) -> str:
     return hashlib.sha256(pin.encode("utf-8")).hexdigest()
 
 def botao_audio(texto: str, label: str = "🔊"):
-    safe = texto.replace("'", " ").replace('"', " ")
+    # Usa JSON pra escapar com segurança: aspas, quebras, emojis, etc.
+    safe_js = json.dumps(texto)
     html = f"""
     <button class="audio-btn" onclick="
-        const u = new SpeechSynthesisUtterance('{safe}');
-        u.lang='en-US'; u.rate=0.9;
+        const u = new SpeechSynthesisUtterance({safe_js});
+        u.lang='en-US'; u.rate=0.92;
         speechSynthesis.cancel(); speechSynthesis.speak(u);
     ">{label}</button>
     """
@@ -4118,37 +4214,95 @@ elif st.session_state.tela == "chat_sheep":
         else:
             st.warning("⚠️ Nenhuma chave de API configurada. Veja abaixo como ativar (uma vez só).")
 
+        # BOTÃO DE DIAGNÓSTICO
+        st.markdown("<br>", unsafe_allow_html=True)
+        if st.button("🔧 Diagnosticar o que está faltando", use_container_width=True, type="primary"):
+            st.session_state.mostrar_diagnostico = True
+
+        if st.session_state.get("mostrar_diagnostico"):
+            with st.spinner("Diagnosticando..."):
+                items = diagnosticar_chat()
+            st.markdown("### 📋 Resultado do diagnóstico")
+            categoria_atual = None
+            for it in items:
+                if it["categoria"] != categoria_atual:
+                    categoria_atual = it["categoria"]
+                    st.markdown(f"#### {categoria_atual}")
+                icone = "✅" if it["ok"] else "❌"
+                cor = "var(--primary)" if it["ok"] else "var(--danger)"
+                st.markdown(
+                    f"<div style='background:var(--surface);border-left:3px solid {cor};"
+                    f"padding:10px 14px;border-radius:8px;margin-bottom:8px;'>"
+                    f"<b>{icone} {it['item']}</b><br>"
+                    f"<span style='color:var(--text-dim);font-size:0.9rem;'>{it['detalhe']}</span>"
+                    f"</div>",
+                    unsafe_allow_html=True
+                )
+            if st.button("Fechar diagnóstico", key="fechar_diag"):
+                st.session_state.mostrar_diagnostico = False
+                st.rerun()
+            st.markdown("---")
+
         with st.expander("🎁 Opção 1 — Google Gemini (RECOMENDADO, GRÁTIS)", expanded=True):
             st.markdown("""
-**Google dá 1 milhão de tokens por dia, grátis.** Pra uma escola com 30-50 alunos, é mais que suficiente — você nunca vai bater o limite.
+**Google dá 1 milhão de tokens por dia, grátis.** Pra escola com 30-50 alunos, é mais que suficiente.
 
-1. Vá em **https://aistudio.google.com/apikey** (entre com sua conta Google)
-2. Clique em **"Create API key"**
-3. Copie a chave (começa com `AIzaSy...`)
-4. No painel do **Streamlit Cloud**, abra seu app → **⚙️ Settings → Secrets**
-5. Adicione esta linha:
-   ```
-   GEMINI_API_KEY = "AIzaSy-sua-chave-aqui"
-   ```
-6. Salve. O app reinicia e o chat passa a funcionar.
+#### Passo a passo:
+
+**1. Pegue a chave no Google AI Studio**
+- Abra: **https://aistudio.google.com/apikey**
+- Entre com sua conta Google (qualquer Gmail funciona)
+- Clique em **"Create API key"** (botão azul, canto superior direito)
+- Pode pedir pra criar um projeto novo — confirme "Create API key in new project"
+- Copie a chave inteira (botão de copiar do lado dela). Vai começar com `AIzaSy` e ter ~39 caracteres.
+
+**2. Cole a chave nos Secrets do Streamlit Cloud**
+- Abra o painel do Streamlit Cloud: **https://share.streamlit.io**
+- Encontre seu app na lista
+- Clique no menu **⋮** (três pontinhos) ao lado do app → **Settings**
+- Vá na aba **Secrets**
+- Cole **EXATAMENTE** isto (com aspas, sem espaços extras):
+
+```toml
+GEMINI_API_KEY = "AIzaSy-cole-sua-chave-aqui"
+```
+
+- Substitua `AIzaSy-cole-sua-chave-aqui` pela chave que você copiou
+- Clique em **Save** (canto inferior direito)
+
+**3. Espere o app reiniciar**
+- O Streamlit Cloud reinicia o app automaticamente após salvar Secrets
+- Espere ~30 segundos
+- Recarregue a página do app (F5)
+- Volte aqui e clique em **🔧 Diagnosticar** acima — deve mostrar tudo ✅
+
+#### Erros comuns:
+
+| Erro | Causa | Solução |
+|---|---|---|
+| "Chave não encontrada" | Esqueceu de salvar os Secrets | Volta no painel e clica Save |
+| "Formato incomum" | Copiou com espaço/aspas extras | Apaga e cola só a chave, com aspas no TOML |
+| "API_KEY_INVALID" | Chave digitada errada | Gera nova chave no AI Studio |
+| "Module not found: google.generativeai" | Lib não instalada | Verifica o `requirements.txt` no GitHub |
+| Funcionou local mas não no Cloud | Tem `.streamlit/secrets.toml` local, mas não Secrets no Cloud | Configure também no Cloud |
 
 **Custo:** 0,00 USD. Não pede cartão de crédito.
 """)
 
         with st.expander("💼 Opção 2 — Anthropic Claude (pago, mais inteligente)"):
             st.markdown("""
-Se quiser mais qualidade nas respostas (Claude é mais sofisticado), use a Anthropic.
+Se quiser respostas mais sofisticadas (Claude é melhor em correções gramaticais sutis).
 
 1. Crie conta em **https://console.anthropic.com/**
 2. Vá em **API Keys → Create Key**, copie (começa com `sk-ant-...`)
-3. No Streamlit Cloud, adicione nos Secrets:
-   ```
+3. No Streamlit Cloud → Settings → Secrets, adicione:
+   ```toml
    ANTHROPIC_API_KEY = "sk-ant-sua-chave-aqui"
    ```
 
-**Custo:** ~$0,01 USD por conversa de 10 mensagens (Claude Haiku). Anthropic dá US$5 de crédito inicial.
+**Custo:** ~$0,01 USD por conversa de 10 mensagens. Anthropic dá US$5 de crédito inicial.
 """)
-        st.caption("💡 **Dica:** comece pelo Gemini (grátis) e veja se atende. A qualidade é ótima pra conversação básica.")
+        st.caption("💡 **Dica:** comece pelo Gemini (grátis). A qualidade é ótima pra conversação básica.")
     else:
         provedor = "gemini" if gem_disp else "anthropic"
         badge_provedor = "🎁 via Gemini (grátis)" if provedor == "gemini" else "💼 via Anthropic Claude"
@@ -4160,15 +4314,24 @@ Se quiser mais qualidade nas respostas (Claude é mais sofisticado), use a Anthr
 
         # Saudação inicial (mostrada visualmente, mas NÃO enviada à API)
         if not st.session_state.chat_messages:
+            saudacao = (f"Hi, **{nome_aluno}**! I'm Sheep 🐑. I'm here to chat with you in English. "
+                        f"How are you today? Tell me anything — about your day, your family, "
+                        f"church... I'm all ears!")
             with st.chat_message("assistant", avatar="🐑"):
-                st.markdown(f"Hi, **{nome_aluno}**! I'm Sheep 🐑. I'm here to chat with you in English. "
-                            f"How are you today? Tell me anything — about your day, your family, "
-                            f"church... I'm all ears!")
+                st.markdown(saudacao)
+                # Áudio só do texto inglês (limpa markdown e emojis)
+                texto_audio = (f"Hi, {nome_aluno}! I'm Sheep. I'm here to chat with you in English. "
+                               f"How are you today? Tell me anything about your day, your family, "
+                               f"church. I'm all ears!")
+                botao_audio(texto_audio, "🔊 Ouvir")
         else:
-            for msg in st.session_state.chat_messages:
+            for i, msg in enumerate(st.session_state.chat_messages):
                 avatar = "🐑" if msg["role"] == "assistant" else None
                 with st.chat_message(msg["role"], avatar=avatar):
                     st.markdown(msg["content"])
+                    # Só Sheep tem botão de áudio (não a mensagem do próprio aluno)
+                    if msg["role"] == "assistant":
+                        botao_audio(msg["content"], "🔊 Ouvir")
 
         # Input
         if prompt := st.chat_input("Type in English..."):
@@ -4186,6 +4349,7 @@ Se quiser mais qualidade nas respostas (Claude é mais sofisticado), use a Anthr
                     with st.spinner("Sheep está pensando..."):
                         bot_reply, _provedor_usado = chat_com_ia(msgs_para_api, SHEEP_SYSTEM_PROMPT, max_tokens=400)
                         st.markdown(bot_reply)
+                        botao_audio(bot_reply, "🔊 Ouvir")
 
                 st.session_state.chat_messages.append({"role": "assistant", "content": bot_reply})
 
