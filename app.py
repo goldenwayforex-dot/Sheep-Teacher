@@ -834,6 +834,11 @@ def marcar_desafio_completado(uid):
 # --- CONVERSAÇÃO ---
 XP_CONVERSA_BASE = 10
 XP_CONVERSA_BONUS_SEM_ERROS = 5
+XP_TEMA_COMPLETO_BONUS = 25  # bônus ao concluir um tema inteiro pela primeira vez
+
+def _conversa_id(tema_id, idx):
+    """Constrói o ID de armazenamento pra uma pergunta dentro de um tema."""
+    return f"{tema_id}_q{idx}"
 
 def salvar_resposta_conversa(uid, conversa_id, resposta, erros_qtd):
     """Registra uma resposta de conversa no banco."""
@@ -843,7 +848,7 @@ def salvar_resposta_conversa(uid, conversa_id, resposta, erros_qtd):
     )
 
 def historico_conversas(uid):
-    """Retorna lista de conversa_id que o aluno já respondeu."""
+    """Retorna set de conversa_ids respondidos pelo aluno."""
     rows = consultar(
         "SELECT DISTINCT conversa_id FROM conversas_respondidas WHERE aluno_id = ?",
         (uid,)
@@ -851,13 +856,33 @@ def historico_conversas(uid):
     return {r[0] for r in rows}
 
 def ultima_resposta_conversa(uid, conversa_id):
-    """Retorna a última resposta do aluno para essa conversa, ou None."""
+    """Retorna (resposta, erros, data) da última resposta nesse conversa_id, ou None."""
     r = consultar_um(
         "SELECT resposta, erros_qtd, respondido_em FROM conversas_respondidas "
         "WHERE aluno_id = ? AND conversa_id = ? ORDER BY id DESC LIMIT 1",
         (uid, conversa_id)
     )
-    return r  # (resposta, erros, data) ou None
+    return r
+
+def progresso_tema(uid, tema):
+    """Retorna (respondidas, total) pra um tema."""
+    total = len(tema["perguntas"])
+    hist = historico_conversas(uid)
+    respondidas = sum(1 for i in range(total) if _conversa_id(tema["id"], i) in hist)
+    return respondidas, total
+
+def proxima_pergunta_tema(uid, tema):
+    """Retorna o índice da próxima pergunta não respondida (ou 0 se todas feitas)."""
+    hist = historico_conversas(uid)
+    for i in range(len(tema["perguntas"])):
+        if _conversa_id(tema["id"], i) not in hist:
+            return i
+    return 0  # se tudo respondido, volta pra primeira
+
+def tema_completo(uid, tema):
+    """True se todas as perguntas do tema já foram respondidas."""
+    respondidas, total = progresso_tema(uid, tema)
+    return respondidas == total
 
 # =========================================================
 # TRILHA DE APRENDIZADO
@@ -1354,69 +1379,256 @@ TRILHA = [
 
 # Explicações pedagógicas - só onde realmente ajuda (gramática)
 # =========================================================
-# MÓDULO DE CONVERSAÇÃO (perguntas abertas + corretor)
+# MÓDULO DE CONVERSAÇÃO (temas com trilha de perguntas)
 # =========================================================
-CONVERSAS = [
-    {"id": "intro_nome", "icone": "👋", "tema": "Apresentação",
-     "pergunta_pt": "Como você se apresentaria a um americano? Diga seu nome e de onde é.",
-     "pergunta_en": "What is your name and where are you from?",
-     "dica": "Comece com 'My name is...' + 'I am from...'"},
-    {"id": "familia", "icone": "👨‍👩‍👧", "tema": "Família",
-     "pergunta_pt": "Fale sobre sua família. Quantos irmãos você tem?",
-     "pergunta_en": "Tell me about your family. How many brothers and sisters do you have?",
-     "dica": "Use 'I have...' pra dizer quantos irmãos. Pra idade, lembre: 'I AM X years old', não 'I have'."},
-    {"id": "rotina", "icone": "⏰", "tema": "Rotina",
-     "pergunta_pt": "Como é um dia normal seu? O que você costuma fazer?",
-     "pergunta_en": "What do you usually do on a normal day?",
-     "dica": "'I wake up...', 'I work...', 'I eat...', 'I sleep...'. Use o presente simples."},
-    {"id": "comida", "icone": "🍽️", "tema": "Comida",
-     "pergunta_pt": "Qual sua comida favorita? Por que você gosta dela?",
-     "pergunta_en": "What is your favorite food? Why do you like it?",
-     "dica": "'My favorite food is...' + 'I like it because...'"},
-    {"id": "domingo_igreja", "icone": "⛪", "tema": "Igreja",
-     "pergunta_pt": "Conte o que você faz no domingo na igreja.",
-     "pergunta_en": "What do you do at church on Sunday?",
-     "dica": "'I go to church', 'I sing', 'I pray', 'I listen to the sermon'."},
-    {"id": "oracao", "icone": "🙏", "tema": "Fé",
-     "pergunta_pt": "Como e quando você costuma orar?",
-     "pergunta_en": "How and when do you usually pray?",
-     "dica": "'I pray every day', 'I pray when...', 'I thank God for...', 'I ask God for...'"},
-    {"id": "versiculo", "icone": "📖", "tema": "Bíblia",
-     "pergunta_pt": "Qual seu versículo favorito? Por quê?",
-     "pergunta_en": "What is your favorite Bible verse and why?",
-     "dica": "'My favorite verse is...' + diga onde está ('It is in Psalms', 'It is from John...')."},
-    {"id": "amanha", "icone": "🔜", "tema": "Futuro",
-     "pergunta_pt": "O que você vai fazer amanhã?",
-     "pergunta_en": "What are you going to do tomorrow?",
-     "dica": "Use 'I am going to...' + verbo no infinitivo."},
-    {"id": "domingo_passado", "icone": "⏪", "tema": "Passado",
-     "pergunta_pt": "O que você fez no domingo passado?",
-     "pergunta_en": "What did you do last Sunday?",
-     "dica": "Use verbos no passado: 'I went...', 'I ate...', 'I prayed...', 'I sang...'"},
-    {"id": "boas_vindas", "icone": "👫", "tema": "Recepção",
-     "pergunta_pt": "Um amigo americano visita sua casa. O que você diz pra recebê-lo?",
-     "pergunta_en": "An American friend visits your home. What do you say to welcome them?",
-     "dica": "'Welcome!', 'Come in', 'Please sit down', 'Would you like some water?'"},
-    {"id": "sentimento_hoje", "icone": "💗", "tema": "Sentimentos",
-     "pergunta_pt": "Como você está se sentindo hoje e por quê?",
-     "pergunta_en": "How are you feeling today and why?",
-     "dica": "'I am feeling happy/sad/tired because...' Use TO BE, não HAVE."},
-    {"id": "testemunho", "icone": "✨", "tema": "Testemunho",
-     "pergunta_pt": "Conte um momento em que você sentiu Deus na sua vida.",
-     "pergunta_en": "Tell me about a moment when you felt God in your life.",
-     "dica": "Use passado: 'I felt God when...', 'I was praying and...', 'God helped me when...'"},
-    {"id": "amigo_triste", "icone": "🫂", "tema": "Aconselhamento",
-     "pergunta_pt": "Um amigo está triste. O que você diria pra encorajá-lo?",
-     "pergunta_en": "A friend is feeling sad. What would you say to encourage them?",
-     "dica": "'Don't worry', 'God loves you', 'I am here for you', 'You are not alone'."},
-    {"id": "sonho", "icone": "⭐", "tema": "Sonhos",
-     "pergunta_pt": "Qual seu maior sonho na vida?",
-     "pergunta_en": "What is your biggest dream in life?",
-     "dica": "'My dream is to...' + verbo. Ex: 'My dream is to travel...'"},
-    {"id": "gratidao", "icone": "🌟", "tema": "Gratidão",
-     "pergunta_pt": "Pelo que você é mais grato hoje?",
-     "pergunta_en": "What are you most thankful for today?",
-     "dica": "'I am thankful for...' + nome ou verbo no -ing."},
+# Cada tema tem várias perguntas que fluem em sequência, como a trilha de aulas.
+# O conversa_id usado pra armazenar é "{tema_id}_q{indice}".
+CONVERSAS_TEMAS = [
+    {
+        "id": "apresentacao",
+        "icone": "👋",
+        "tema": "Apresentação",
+        "descricao": "Conheça-se em inglês — o básico de uma primeira conversa.",
+        "perguntas": [
+            {"pergunta_pt": "Como você se chama?",
+             "pergunta_en": "What is your name?",
+             "dica": "Comece com 'My name is...' ou 'I am...'"},
+            {"pergunta_pt": "Quantos anos você tem?",
+             "pergunta_en": "How old are you?",
+             "dica": "'I am X years old' — use TO BE, não HAVE."},
+            {"pergunta_pt": "De onde você é?",
+             "pergunta_en": "Where are you from?",
+             "dica": "'I am from Brazil' ou 'I am from Marília.'"},
+            {"pergunta_pt": "Onde você mora?",
+             "pergunta_en": "Where do you live?",
+             "dica": "'I live in...' + cidade ou bairro."},
+            {"pergunta_pt": "O que você faz da vida?",
+             "pergunta_en": "What do you do?",
+             "dica": "'I am a student/teacher/...' ou 'I work as a...'"},
+            {"pergunta_pt": "Conte uma coisa interessante sobre você.",
+             "pergunta_en": "Tell me one interesting thing about yourself.",
+             "dica": "Hobby, talento, algo único: 'I can play guitar', 'I love cooking'..."},
+        ]
+    },
+    {
+        "id": "familia",
+        "icone": "👨‍👩‍👧",
+        "tema": "Família",
+        "descricao": "Fale sobre seus pais, irmãos, e momentos em família.",
+        "perguntas": [
+            {"pergunta_pt": "Você tem irmãos? Quantos?",
+             "pergunta_en": "Do you have brothers or sisters? How many?",
+             "dica": "'I have two brothers and one sister' — use HAVE pra contar."},
+            {"pergunta_pt": "Qual o nome deles?",
+             "pergunta_en": "What are their names?",
+             "dica": "'Their names are...' ou 'My brother's name is...'"},
+            {"pergunta_pt": "Você é o mais velho, mais novo ou do meio?",
+             "pergunta_en": "Are you the oldest, the youngest, or the middle child?",
+             "dica": "'I am the oldest/youngest/middle child.'"},
+            {"pergunta_pt": "Você mora com sua família?",
+             "pergunta_en": "Do you live with your family?",
+             "dica": "'Yes, I live with...' ou 'No, I live alone/with friends/...'"},
+            {"pergunta_pt": "Quem é a pessoa mais próxima de você na sua família?",
+             "pergunta_en": "Who is the closest person to you in your family?",
+             "dica": "'My closest person is my mom/dad/sister...' + 'because...'"},
+            {"pergunta_pt": "Conte uma memória feliz em família.",
+             "pergunta_en": "Tell me about a happy memory with your family.",
+             "dica": "Use passado: 'I remember when we...', 'We traveled to...', 'We celebrated...'"},
+        ]
+    },
+    {
+        "id": "rotina",
+        "icone": "⏰",
+        "tema": "Rotina",
+        "descricao": "Descreva como é um dia comum na sua vida.",
+        "perguntas": [
+            {"pergunta_pt": "Que horas você costuma acordar?",
+             "pergunta_en": "What time do you usually wake up?",
+             "dica": "'I usually wake up at 7 a.m.' Use presente simples + 'at + hora'."},
+            {"pergunta_pt": "Qual é a primeira coisa que você faz de manhã?",
+             "pergunta_en": "What is the first thing you do in the morning?",
+             "dica": "'The first thing I do is...' ou 'I pray', 'I drink coffee', 'I take a shower'..."},
+            {"pergunta_pt": "Você toma café da manhã? O que come?",
+             "pergunta_en": "Do you eat breakfast? What do you eat?",
+             "dica": "'Yes, I eat...' / 'No, I usually skip breakfast.'"},
+            {"pergunta_pt": "Como você vai pro trabalho/escola?",
+             "pergunta_en": "How do you go to work or school?",
+             "dica": "'I go by car/bus/bike/foot.' Use 'by' + transporte."},
+            {"pergunta_pt": "O que você faz à noite?",
+             "pergunta_en": "What do you do in the evening?",
+             "dica": "'In the evening I...' + verbos: read, watch TV, pray, study..."},
+            {"pergunta_pt": "Que horas você costuma dormir?",
+             "pergunta_en": "What time do you usually go to bed?",
+             "dica": "'I usually go to bed at 10 p.m.'"},
+        ]
+    },
+    {
+        "id": "igreja_fe",
+        "icone": "⛪",
+        "tema": "Igreja e Fé",
+        "descricao": "Compartilhe sobre sua fé, igreja e relacionamento com Deus.",
+        "perguntas": [
+            {"pergunta_pt": "Qual igreja você frequenta?",
+             "pergunta_en": "Which church do you attend?",
+             "dica": "'I attend Bethany Church' ou 'My church is...'"},
+            {"pergunta_pt": "Há quanto tempo você é cristão?",
+             "pergunta_en": "How long have you been a Christian?",
+             "dica": "'I have been a Christian for X years.' (Present Perfect Continuous)"},
+            {"pergunta_pt": "O que você faz na igreja no domingo?",
+             "pergunta_en": "What do you do at church on Sunday?",
+             "dica": "'I sing in the choir', 'I help with kids', 'I listen to the sermon'..."},
+            {"pergunta_pt": "Tem uma música de adoração favorita?",
+             "pergunta_en": "Do you have a favorite worship song?",
+             "dica": "'My favorite worship song is...' + 'because...'"},
+            {"pergunta_pt": "Qual seu versículo bíblico favorito? Por quê?",
+             "pergunta_en": "What is your favorite Bible verse and why?",
+             "dica": "'My favorite verse is...' + 'It is from John/Psalms/...' + 'because...'"},
+            {"pergunta_pt": "Como você costuma orar?",
+             "pergunta_en": "How do you usually pray?",
+             "dica": "'I pray every morning', 'I thank God for...', 'I ask God for...'"},
+            {"pergunta_pt": "Conte sobre quando sentiu Deus pela primeira vez.",
+             "pergunta_en": "Tell me about when you first felt God in your life.",
+             "dica": "Use passado: 'I felt God when...', 'It was during...', 'I remember...'"},
+        ]
+    },
+    {
+        "id": "comida",
+        "icone": "🍽️",
+        "tema": "Comida",
+        "descricao": "Comida favorita, cozinha brasileira, e experiências culinárias.",
+        "perguntas": [
+            {"pergunta_pt": "Qual é sua comida favorita?",
+             "pergunta_en": "What is your favorite food?",
+             "dica": "'My favorite food is...' + 'because I love...'"},
+            {"pergunta_pt": "Você sabe cozinhar? O que sabe fazer?",
+             "pergunta_en": "Do you know how to cook? What can you cook?",
+             "dica": "'Yes, I can cook...' / 'No, I do not know how to cook.'"},
+            {"pergunta_pt": "Descreva um café da manhã típico no Brasil.",
+             "pergunta_en": "Describe a typical breakfast in Brazil.",
+             "dica": "'A typical Brazilian breakfast has...' + bread, coffee, fruits, cheese..."},
+            {"pergunta_pt": "Qual comida você não gosta?",
+             "pergunta_en": "What food do you not like?",
+             "dica": "'I do not like...' + 'because it is too...' (salty, spicy, sweet)"},
+            {"pergunta_pt": "Você já provou comida americana? O quê?",
+             "pergunta_en": "Have you ever tried American food? What did you try?",
+             "dica": "'Yes, I have tried...' / 'No, I have never tried...' (Present Perfect)"},
+        ]
+    },
+    {
+        "id": "sonhos_futuro",
+        "icone": "⭐",
+        "tema": "Sonhos e Futuro",
+        "descricao": "Seus planos, sonhos, e o futuro que você espera.",
+        "perguntas": [
+            {"pergunta_pt": "Qual é seu maior sonho na vida?",
+             "pergunta_en": "What is your biggest dream in life?",
+             "dica": "'My biggest dream is to...' + verbo no infinitivo."},
+            {"pergunta_pt": "O que você quer fazer nos próximos 5 anos?",
+             "pergunta_en": "What do you want to do in the next 5 years?",
+             "dica": "'I want to...' + verbo. Pode listar várias coisas."},
+            {"pergunta_pt": "Você quer viajar? Pra onde?",
+             "pergunta_en": "Do you want to travel? Where to?",
+             "dica": "'Yes, I want to travel to...' / 'My dream destination is...'"},
+            {"pergunta_pt": "Que tipo de trabalho você sonha fazer?",
+             "pergunta_en": "What kind of work do you dream of doing?",
+             "dica": "'I want to be a...' + profissão, ou 'I want to work with...'"},
+            {"pergunta_pt": "Como sua fé pode ajudar você a alcançar seus sonhos?",
+             "pergunta_en": "How can your faith help you reach your dreams?",
+             "dica": "'My faith helps me to...' / 'God gives me...'"},
+        ]
+    },
+    {
+        "id": "sentimentos",
+        "icone": "💗",
+        "tema": "Sentimentos",
+        "descricao": "Como você se sente, o que te alegra e o que te abala.",
+        "perguntas": [
+            {"pergunta_pt": "Como você está se sentindo hoje?",
+             "pergunta_en": "How are you feeling today?",
+             "dica": "'I am feeling happy/sad/tired/...' Use TO BE, não HAVE."},
+            {"pergunta_pt": "O que te deixa feliz?",
+             "pergunta_en": "What makes you happy?",
+             "dica": "'X makes me happy' — sujeito + makes me + adjetivo."},
+            {"pergunta_pt": "O que te deixa triste?",
+             "pergunta_en": "What makes you sad?",
+             "dica": "'It makes me sad when...' ou 'I feel sad when...'"},
+            {"pergunta_pt": "O que você faz quando está nervoso?",
+             "pergunta_en": "What do you do when you are nervous?",
+             "dica": "'When I am nervous, I...' + pray, breathe, walk, etc."},
+            {"pergunta_pt": "Conte um momento em que sentiu muita gratidão.",
+             "pergunta_en": "Tell me about a moment when you felt very grateful.",
+             "dica": "Use passado: 'I felt grateful when...', 'I will never forget when...'"},
+        ]
+    },
+    {
+        "id": "testemunho",
+        "icone": "✨",
+        "tema": "Testemunho",
+        "descricao": "Pratique compartilhar sua história com Deus em inglês.",
+        "perguntas": [
+            {"pergunta_pt": "Quando você se tornou cristão?",
+             "pergunta_en": "When did you become a Christian?",
+             "dica": "'I became a Christian when I was X years old' ou 'in [ano]'."},
+            {"pergunta_pt": "Conte um momento em que Deus respondeu sua oração.",
+             "pergunta_en": "Tell me about a time when God answered your prayer.",
+             "dica": "Use passado: 'I prayed for...', 'God answered when...', 'It was a miracle'."},
+            {"pergunta_pt": "Quem te apresentou a Jesus?",
+             "pergunta_en": "Who introduced you to Jesus?",
+             "dica": "'My mother/father/friend/pastor introduced me to Jesus.'"},
+            {"pergunta_pt": "Como sua vida mudou depois que conheceu Deus?",
+             "pergunta_en": "How has your life changed since you met God?",
+             "dica": "Present Perfect: 'My life has changed...' + 'I have more peace/joy/...'"},
+            {"pergunta_pt": "O que você diria pra alguém que não conhece Jesus?",
+             "pergunta_en": "What would you say to someone who does not know Jesus?",
+             "dica": "'I would tell them that...' ou 'Jesus loves you', 'He can change your life'."},
+        ]
+    },
+    {
+        "id": "aconselhamento",
+        "icone": "🫂",
+        "tema": "Aconselhamento",
+        "descricao": "Pratique consolar, encorajar e dar conselhos em inglês.",
+        "perguntas": [
+            {"pergunta_pt": "Um amigo está triste. O que você diz?",
+             "pergunta_en": "A friend is feeling sad. What do you say?",
+             "dica": "'I am here for you', 'Do not worry', 'God loves you'."},
+            {"pergunta_pt": "Alguém está doente. O que você diz?",
+             "pergunta_en": "Someone is sick. What do you say?",
+             "dica": "'I hope you get better soon', 'I will pray for you'."},
+            {"pergunta_pt": "Um amigo conseguiu um novo emprego. Como você o parabeniza?",
+             "pergunta_en": "A friend got a new job. How do you congratulate them?",
+             "dica": "'Congratulations!', 'I am so happy for you!', 'You deserve it!'"},
+            {"pergunta_pt": "Alguém está com dúvidas sobre Deus. Como você encoraja?",
+             "pergunta_en": "Someone is doubting God. How do you encourage them?",
+             "dica": "'God is real', 'I had doubts too, but...', 'Read the Bible and pray'."},
+            {"pergunta_pt": "Um amigo perdeu alguém querido. O que você diz?",
+             "pergunta_en": "A friend lost someone they love. What do you say?",
+             "dica": "'I am so sorry for your loss', 'I will pray for you', 'God is with you'."},
+        ]
+    },
+    {
+        "id": "conversa_casual",
+        "icone": "💬",
+        "tema": "Conversa Casual",
+        "descricao": "Small talk: assuntos leves do dia a dia em inglês.",
+        "perguntas": [
+            {"pergunta_pt": "Como está o tempo hoje?",
+             "pergunta_en": "How is the weather today?",
+             "dica": "'It is sunny/rainy/hot/cold today.' Use 'it is' pra clima."},
+            {"pergunta_pt": "O que você fez no fim de semana passado?",
+             "pergunta_en": "What did you do last weekend?",
+             "dica": "Passado: 'I went to...', 'I visited...', 'I stayed home and...'"},
+            {"pergunta_pt": "O que está planejando pra amanhã?",
+             "pergunta_en": "What are you planning for tomorrow?",
+             "dica": "'I am going to...' / 'Tomorrow I will...'"},
+            {"pergunta_pt": "Viu algum filme bom recentemente?",
+             "pergunta_en": "Have you seen any good movies lately?",
+             "dica": "'Yes, I watched...' / 'No, I have not watched any movies lately.'"},
+            {"pergunta_pt": "Qual a melhor parte da sua semana?",
+             "pergunta_en": "What is the best part of your week?",
+             "dica": "'The best part of my week is/was...' + por quê."},
+        ]
+    },
 ]
 
 # Termos da igreja/bíblicos que o spellchecker pode marcar erradamente
@@ -3457,169 +3669,230 @@ elif st.session_state.tela == "onboarding":
                     reset_para_inicio(); st.rerun()
 
 # =========================================================
-# TELA: CONVERSAÇÃO - LISTA DE TÓPICOS
+# TELA: CONVERSAÇÃO - LISTA DE TEMAS
 # =========================================================
 elif st.session_state.tela == "conversacao_lista":
     uid = st.session_state.uid
-    respondidas = historico_conversas(uid)
 
     st.markdown(
         "<div class='premium-card' style='display:flex;align-items:center;gap:18px;'>"
         "<div style='font-size:3rem;'>💬</div>"
         "<div><h1 style='margin:0;font-family:Sora,sans-serif;'>Conversação</h1>"
-        "<p class='subtitulo' style='margin:4px 0 0;'>Pratique inglês respondendo perguntas abertas. "
-        "Cada resposta é única — você ganha XP por se expressar, e o app te ajuda a corrigir erros.</p>"
+        "<p class='subtitulo' style='margin:4px 0 0;'>Cada tema é uma trilha de perguntas em sequência. "
+        "Responda no seu ritmo — o app te ajuda corrigindo erros comuns.</p>"
         "</div></div>",
         unsafe_allow_html=True
     )
 
-    # Status
-    st.markdown(
-        f"<div style='margin:18px 0 8px;color:var(--text-dim);'>"
-        f"Você já respondeu <b style='color:var(--primary);'>{len(respondidas)}</b> de <b>{len(CONVERSAS)}</b> conversas.</div>",
-        unsafe_allow_html=True
-    )
+    # Estatísticas globais
+    total_perguntas = sum(len(t["perguntas"]) for t in CONVERSAS_TEMAS)
+    hist = historico_conversas(uid)
+    total_respondidas = sum(1 for h in hist if any(
+        h.startswith(t["id"] + "_q") for t in CONVERSAS_TEMAS
+    ))
+    temas_completos = sum(1 for t in CONVERSAS_TEMAS if tema_completo(uid, t))
+
+    sa, sb, sc = st.columns(3)
+    with sa: st.markdown(f"<div class='stat-box'><div class='stat-num'>{total_respondidas}</div><div class='stat-label'>Perguntas Respondidas</div></div>", unsafe_allow_html=True)
+    with sb: st.markdown(f"<div class='stat-box'><div class='stat-num'>{total_perguntas}</div><div class='stat-label'>Total de Perguntas</div></div>", unsafe_allow_html=True)
+    with sc: st.markdown(f"<div class='stat-box'><div class='stat-num'>{temas_completos}/{len(CONVERSAS_TEMAS)}</div><div class='stat-label'>Temas Completos</div></div>", unsafe_allow_html=True)
+
     if not SPELL_OK:
         st.info("ℹ️ Corretor de ortografia indisponível. O corretor de gramática continua funcionando.")
 
     st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown("### 📚 Escolha um tema")
 
-    # Grid 2 colunas
+    # Grid de temas
     cols = st.columns(2)
-    for i, conv in enumerate(CONVERSAS):
+    for i, tema in enumerate(CONVERSAS_TEMAS):
+        respondidas, total = progresso_tema(uid, tema)
+        pct = int(100 * respondidas / total) if total else 0
+        completo = (respondidas == total)
+        cor_borda = "var(--primary)" if completo else ("var(--accent)" if respondidas > 0 else "var(--border-light)")
+        badge = ("<span style='color:var(--primary);font-weight:600;'>✅ COMPLETO</span>"
+                 if completo else
+                 f"<span style='color:var(--accent);font-weight:600;'>{respondidas}/{total} respondidas</span>"
+                 if respondidas > 0 else
+                 f"<span style='color:var(--text-dim);font-weight:600;'>{total} perguntas</span>")
+
         with cols[i % 2]:
-            ja_feita = conv["id"] in respondidas
-            status_html = ("<span style='color:var(--primary);font-weight:600;font-size:0.85rem;'>✅ Respondida</span>"
-                           if ja_feita else "<span style='color:var(--accent);font-weight:600;font-size:0.85rem;'>🎯 Disponível</span>")
             st.markdown(
                 f"<div class='premium-card' style='padding:18px;margin-bottom:14px;"
-                f"border-left:3px solid {'var(--primary)' if ja_feita else 'var(--accent)'};'>"
+                f"border-left:3px solid {cor_borda};'>"
                 f"<div style='display:flex;align-items:start;gap:14px;'>"
-                f"<div style='font-size:2rem;'>{conv['icone']}</div>"
-                f"<div style='flex:1;'><b style='font-size:1.05rem;'>{conv['tema']}</b>"
-                f"<br>{status_html}"
-                f"<p style='color:var(--text-dim);margin:8px 0 0;font-size:0.92rem;'>{conv['pergunta_pt']}</p>"
+                f"<div style='font-size:2.4rem;'>{tema['icone']}</div>"
+                f"<div style='flex:1;min-width:0;'>"
+                f"<b style='font-size:1.1rem;'>{tema['tema']}</b><br>"
+                f"{badge}"
+                f"<p style='color:var(--text-dim);margin:8px 0 10px;font-size:0.9rem;line-height:1.45;'>{tema['descricao']}</p>"
+                # Barra de progresso
+                f"<div style='background:var(--border);height:6px;border-radius:3px;overflow:hidden;'>"
+                f"<div style='background:{cor_borda};height:100%;width:{pct}%;transition:width 0.5s;'></div></div>"
                 f"</div></div></div>",
                 unsafe_allow_html=True
             )
-            btn_label = "🔁 Responder de novo" if ja_feita else "🎯 Responder"
-            if st.button(btn_label, key=f"conv_btn_{conv['id']}", use_container_width=True):
-                st.session_state.conversa_atual = conv["id"]
-                st.session_state.tela = "conversacao_pratica"
-                # Limpa estado anterior
+            if completo:
+                btn_label = "🔁 Refazer tema"
+            elif respondidas > 0:
+                btn_label = "➡️ Continuar tema"
+            else:
+                btn_label = "🎯 Começar tema"
+            if st.button(btn_label, key=f"tema_btn_{tema['id']}", use_container_width=True):
+                st.session_state.tema_atual = tema["id"]
+                # Se completo, começa do início; senão, na próxima não respondida
+                if completo:
+                    st.session_state.tema_pergunta_idx = 0
+                else:
+                    st.session_state.tema_pergunta_idx = proxima_pergunta_tema(uid, tema)
                 for k in ["conv_resposta_enviada", "conv_problemas", "conv_xp_ganho"]:
                     st.session_state.pop(k, None)
+                st.session_state.tela = "conversacao_tema"
                 st.rerun()
 
 # =========================================================
-# TELA: CONVERSAÇÃO - PRÁTICA (responder + ver feedback)
+# TELA: CONVERSAÇÃO - TRILHA DE PERGUNTAS DENTRO DE UM TEMA
 # =========================================================
-elif st.session_state.tela == "conversacao_pratica":
+elif st.session_state.tela == "conversacao_tema":
     uid = st.session_state.uid
-    conv_id = st.session_state.get("conversa_atual")
-    conv = next((c for c in CONVERSAS if c["id"] == conv_id), None)
+    tema_id = st.session_state.get("tema_atual")
+    tema = next((t for t in CONVERSAS_TEMAS if t["id"] == tema_id), None)
 
-    if not conv:
-        st.error("Conversa não encontrada.")
+    if not tema:
+        st.error("Tema não encontrado.")
         if st.button("⬅️ Voltar"):
             st.session_state.tela = "conversacao_lista"; st.rerun()
     else:
-        if st.button("⬅️ Voltar à lista de conversas"):
-            st.session_state.tela = "conversacao_lista"; st.rerun()
+        idx = st.session_state.get("tema_pergunta_idx", 0)
+        idx = max(0, min(idx, len(tema["perguntas"]) - 1))
+        pergunta = tema["perguntas"][idx]
+        conv_id = _conversa_id(tema["id"], idx)
+        total = len(tema["perguntas"])
+        respondidas, _ = progresso_tema(uid, tema)
+        pct = int(100 * (idx + 1) / total)
+
+        # Top: voltar pra lista
+        c_back, c_prog = st.columns([1, 4])
+        with c_back:
+            if st.button("⬅️ Temas"):
+                st.session_state.tela = "conversacao_lista"
+                for k in ["conv_resposta_enviada", "conv_problemas", "conv_xp_ganho"]:
+                    st.session_state.pop(k, None)
+                st.rerun()
+        with c_prog:
+            st.progress((idx + 1) / total)
+            st.caption(f"{tema['icone']} {tema['tema']} — Pergunta {idx + 1} de {total} · {respondidas} respondida(s)")
 
         # Cabeçalho da pergunta
         st.markdown(
-            f"<div class='premium-card' style='display:flex;align-items:center;gap:18px;'>"
-            f"<div style='font-size:3rem;'>{conv['icone']}</div>"
-            f"<div><div style='color:var(--text-dim);font-size:0.85rem;text-transform:uppercase;"
-            f"letter-spacing:1.5px;font-weight:600;'>{conv['tema']}</div>"
-            f"<h2 style='margin:4px 0;font-family:Sora,sans-serif;'>{conv['pergunta_pt']}</h2>"
-            f"<div style='color:var(--primary-light);font-size:1.05rem;font-style:italic;margin-top:4px;'>"
-            f"{conv['pergunta_en']}</div></div></div>",
+            f"<div class='premium-card' style='display:flex;align-items:center;gap:18px;margin-top:8px;'>"
+            f"<div style='font-size:2.8rem;'>{tema['icone']}</div>"
+            f"<div style='flex:1;'>"
+            f"<div style='color:var(--text-dim);font-size:0.8rem;text-transform:uppercase;"
+            f"letter-spacing:1.4px;font-weight:600;'>{tema['tema']}</div>"
+            f"<h2 style='margin:4px 0;font-family:Sora,sans-serif;font-size:1.6rem;'>{pergunta['pergunta_pt']}</h2>"
+            f"<div style='color:var(--primary-light);font-size:1.05rem;font-style:italic;margin-top:6px;'>"
+            f"{pergunta['pergunta_en']}</div></div></div>",
             unsafe_allow_html=True
         )
 
-        # Botão de áudio da pergunta em inglês
+        # Áudio + dica
         col_a, col_b = st.columns([1, 6])
         with col_a:
-            botao_audio(conv["pergunta_en"], "🔊 Ouvir")
-
-        # Dica
-        if conv.get("dica"):
-            st.markdown(
-                f"<div class='explicacao'>💡 <b>Dica:</b> {conv['dica']}</div>",
-                unsafe_allow_html=True
-            )
+            botao_audio(pergunta["pergunta_en"], "🔊 Ouvir")
+        if pergunta.get("dica"):
+            st.markdown(f"<div class='explicacao'>💡 <b>Dica:</b> {pergunta['dica']}</div>", unsafe_allow_html=True)
 
         st.markdown("<br>", unsafe_allow_html=True)
 
-        # Se ainda não enviou, mostra textarea
-        if not st.session_state.get("conv_resposta_enviada"):
-            ultima = ultima_resposta_conversa(uid, conv_id)
-            txt_default = ""
-            if ultima:
-                st.caption(f"📌 Sua resposta anterior ({ultima[2]}): _{ultima[0]}_")
+        ja_respondeu_antes = ultima_resposta_conversa(uid, conv_id)
+        respondida_agora = bool(st.session_state.get("conv_resposta_enviada"))
+
+        if not respondida_agora:
+            # Mostra textarea pra responder
+            if ja_respondeu_antes:
+                st.caption(f"📌 Sua resposta anterior ({ja_respondeu_antes[2]}): _{ja_respondeu_antes[0]}_")
             resposta = st.text_area(
                 "✏️ Sua resposta em inglês:",
-                value=txt_default,
-                height=140,
-                placeholder="Digite aqui sua resposta em inglês. Não precisa ser perfeita — o importante é praticar.",
-                key="conv_textarea"
+                height=130,
+                placeholder="Escreva sua resposta. Não precisa ser perfeita — o importante é praticar.",
+                key=f"conv_ta_{tema['id']}_{idx}"
             )
-            c1, c2 = st.columns([1, 1])
-            with c1:
-                if st.button("📤 Enviar resposta", use_container_width=True, type="primary"):
+            c_send, c_skip = st.columns([2, 1])
+            with c_send:
+                if st.button("📤 Enviar resposta", use_container_width=True, type="primary",
+                             key=f"send_{tema['id']}_{idx}"):
                     if not resposta or not resposta.strip():
                         st.warning("Escreva alguma coisa antes de enviar 😊")
                     elif len(resposta.strip()) < 3:
                         st.warning("Tente escrever uma frase mais completa.")
                     else:
-                        # Corrige e dá XP
                         problemas = corrigir_ingles(resposta)
                         erros_qtd = len(problemas)
                         xp_ganho = XP_CONVERSA_BASE + (XP_CONVERSA_BONUS_SEM_ERROS if erros_qtd == 0 else 0)
-                        executar("UPDATE alunos SET xp_total = xp_total + ? WHERE id = ?", (xp_ganho, uid))
+
+                        # Verifica se essa resposta completa o tema (bônus extra na primeira vez)
+                        tema_estava_completo = tema_completo(uid, tema)
                         salvar_resposta_conversa(uid, conv_id, resposta.strip(), erros_qtd)
+                        tema_agora_completo = tema_completo(uid, tema)
+                        bonus_tema = 0
+                        if not tema_estava_completo and tema_agora_completo:
+                            bonus_tema = XP_TEMA_COMPLETO_BONUS
+                            xp_ganho += bonus_tema
+                            st.session_state.tema_recem_completado = True
+
+                        executar("UPDATE alunos SET xp_total = xp_total + ? WHERE id = ?", (xp_ganho, uid))
                         verificar_conquistas(uid)
                         st.session_state.conv_resposta_enviada = resposta.strip()
                         st.session_state.conv_problemas = problemas
                         st.session_state.conv_xp_ganho = xp_ganho
+                        st.session_state.conv_bonus_tema = bonus_tema
+                        st.rerun()
+            with c_skip:
+                if idx + 1 < total:
+                    if st.button("⏭️ Pular", use_container_width=True, key=f"skip_{tema['id']}_{idx}",
+                                 help="Pular esta pergunta sem responder"):
+                        st.session_state.tema_pergunta_idx = idx + 1
+                        for k in ["conv_resposta_enviada", "conv_problemas", "conv_xp_ganho"]:
+                            st.session_state.pop(k, None)
                         st.rerun()
 
         else:
-            # Mostra feedback
+            # Mostra feedback da resposta
             resposta = st.session_state.conv_resposta_enviada
             problemas = st.session_state.get("conv_problemas", [])
             xp_ganho = st.session_state.get("conv_xp_ganho", XP_CONVERSA_BASE)
+            bonus_tema = st.session_state.get("conv_bonus_tema", 0)
 
-            # Banner de XP
+            # Banner principal
+            sem_erros = (len(problemas) == 0)
             st.markdown(
                 f"<div style='background:linear-gradient(135deg, rgba(16,185,129,0.15), rgba(252,211,77,0.08));"
                 f"border:1px solid var(--primary);border-radius:14px;padding:18px 22px;margin-bottom:18px;"
                 f"display:flex;align-items:center;gap:16px;'>"
-                f"<div style='font-size:2.2rem;'>{'🌟' if not problemas else '✅'}</div>"
+                f"<div style='font-size:2.2rem;'>{'🌟' if sem_erros else '✅'}</div>"
                 f"<div style='flex:1;'>"
                 f"<b style='color:var(--primary-light);font-size:1.15rem;'>"
-                f"{'Resposta perfeita! Sem erros detectados.' if not problemas else 'Resposta enviada! Veja as dicas abaixo.'}"
-                f"</b><br>"
+                f"{'Resposta perfeita!' if sem_erros else 'Resposta enviada!'}</b><br>"
                 f"<span class='xp-floating'>+{xp_ganho} XP</span>"
-                + (f" <span style='color:var(--gold);'>(inclui +{XP_CONVERSA_BONUS_SEM_ERROS} bônus por texto sem erros!)</span>" if not problemas else "")
+                + (f" <span style='color:var(--gold);font-weight:600;'>(+{XP_CONVERSA_BONUS_SEM_ERROS} bônus sem erros)</span>" if sem_erros and bonus_tema == 0 else "")
+                + (f"<br><span style='color:var(--gold);font-weight:700;font-size:1.05rem;'>🏆 TEMA COMPLETO! +{XP_TEMA_COMPLETO_BONUS} XP de bônus</span>" if bonus_tema > 0 else "")
                 + f"</div></div>",
                 unsafe_allow_html=True
             )
 
-            # Mostra a resposta
+            # Resposta dele
             st.markdown(
                 f"<div style='background:var(--surface);border:1px solid var(--border);"
                 f"border-radius:12px;padding:16px;margin-bottom:18px;'>"
-                f"<div style='color:var(--text-dim);font-size:0.8rem;text-transform:uppercase;"
+                f"<div style='color:var(--text-dim);font-size:0.78rem;text-transform:uppercase;"
                 f"letter-spacing:1.2px;font-weight:600;margin-bottom:6px;'>📝 Sua resposta:</div>"
-                f"<div style='font-size:1.05rem;color:var(--text);line-height:1.5;'>{resposta}</div>"
+                f"<div style='font-size:1.05rem;color:var(--text);line-height:1.55;'>{resposta}</div>"
                 f"</div>",
                 unsafe_allow_html=True
             )
 
-            # Lista de problemas
+            # Problemas
             if problemas:
                 st.markdown(f"### 💡 {len(problemas)} dica(s) pra melhorar:")
                 for i, p in enumerate(problemas, 1):
@@ -3642,22 +3915,56 @@ elif st.session_state.tela == "conversacao_pratica":
             else:
                 st.success("🎯 Texto bem escrito! Não detectei erros gramaticais comuns.")
 
-            # Botão pra ouvir a resposta dele em inglês (TTS)
             botao_audio(resposta, "🔊 Ouvir sua resposta")
 
             st.markdown("<br>", unsafe_allow_html=True)
-            cb1, cb2 = st.columns(2)
-            with cb1:
-                if st.button("🔁 Responder de novo", use_container_width=True):
-                    for k in ["conv_resposta_enviada", "conv_problemas", "conv_xp_ganho"]:
-                        st.session_state.pop(k, None)
-                    st.rerun()
-            with cb2:
-                if st.button("📋 Outras conversas", use_container_width=True, type="primary"):
-                    for k in ["conv_resposta_enviada", "conv_problemas", "conv_xp_ganho", "conversa_atual"]:
-                        st.session_state.pop(k, None)
-                    st.session_state.tela = "conversacao_lista"
-                    st.rerun()
+
+            # Navegação: próxima pergunta ou voltar
+            if idx + 1 < total:
+                cb1, cb2, cb3 = st.columns([1, 2, 1])
+                with cb1:
+                    if st.button("🔁 Refazer", use_container_width=True, key=f"redo_{tema['id']}_{idx}"):
+                        for k in ["conv_resposta_enviada", "conv_problemas", "conv_xp_ganho", "conv_bonus_tema"]:
+                            st.session_state.pop(k, None)
+                        st.rerun()
+                with cb2:
+                    if st.button("Próxima pergunta ➡️", use_container_width=True, type="primary",
+                                 key=f"next_{tema['id']}_{idx}"):
+                        st.session_state.tema_pergunta_idx = idx + 1
+                        for k in ["conv_resposta_enviada", "conv_problemas", "conv_xp_ganho", "conv_bonus_tema"]:
+                            st.session_state.pop(k, None)
+                        st.rerun()
+                with cb3:
+                    if st.button("📋 Temas", use_container_width=True, key=f"back_{tema['id']}_{idx}"):
+                        st.session_state.tela = "conversacao_lista"
+                        for k in ["conv_resposta_enviada", "conv_problemas", "conv_xp_ganho", "conv_bonus_tema"]:
+                            st.session_state.pop(k, None)
+                        st.rerun()
+            else:
+                # Última pergunta — tema concluído
+                st.markdown(
+                    f"<div style='background:linear-gradient(135deg, rgba(252,211,77,0.18), rgba(16,185,129,0.1));"
+                    f"border:2px solid var(--gold);border-radius:14px;padding:24px;margin:18px 0;text-align:center;'>"
+                    f"<div style='font-size:3rem;'>🎉</div>"
+                    f"<h2 style='margin:8px 0;font-family:Sora,sans-serif;color:var(--gold);'>Tema concluído!</h2>"
+                    f"<p style='color:var(--text-dim);'>Você respondeu todas as perguntas de <b>{tema['tema']}</b>. "
+                    f"Parabéns pela prática!</p></div>",
+                    unsafe_allow_html=True
+                )
+                cb1, cb2 = st.columns(2)
+                with cb1:
+                    if st.button("📋 Outros temas", use_container_width=True, type="primary",
+                                 key=f"others_{tema['id']}"):
+                        st.session_state.tela = "conversacao_lista"
+                        for k in ["conv_resposta_enviada", "conv_problemas", "conv_xp_ganho", "conv_bonus_tema"]:
+                            st.session_state.pop(k, None)
+                        st.rerun()
+                with cb2:
+                    if st.button("🔁 Refazer este tema", use_container_width=True, key=f"redo_tema_{tema['id']}"):
+                        st.session_state.tema_pergunta_idx = 0
+                        for k in ["conv_resposta_enviada", "conv_problemas", "conv_xp_ganho", "conv_bonus_tema"]:
+                            st.session_state.pop(k, None)
+                        st.rerun()
 
 # =========================================================
 # TELA: CONCLUSÃO
