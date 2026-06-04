@@ -30,6 +30,64 @@ try:
 except ImportError:
     SPELL_OK = False
 
+# anthropic é opcional - se faltar OU sem API key, o chat com Sheep fica desabilitado
+try:
+    import anthropic
+    ANTHROPIC_LIB_OK = True
+except ImportError:
+    ANTHROPIC_LIB_OK = False
+
+def get_anthropic_client():
+    """Retorna cliente Anthropic se configurado, senão None."""
+    if not ANTHROPIC_LIB_OK:
+        return None
+    api_key = None
+    # 1ª opção: st.secrets (Streamlit Cloud)
+    try:
+        if hasattr(st, "secrets") and "ANTHROPIC_API_KEY" in st.secrets:
+            api_key = st.secrets["ANTHROPIC_API_KEY"]
+    except Exception:
+        pass
+    # 2ª opção: variável de ambiente
+    if not api_key:
+        import os
+        api_key = os.environ.get("ANTHROPIC_API_KEY")
+    if not api_key:
+        return None
+    try:
+        return anthropic.Anthropic(api_key=api_key)
+    except Exception:
+        return None
+
+CHAT_OK = ANTHROPIC_LIB_OK  # Vamos checar a key em runtime
+CHAT_MODEL = "claude-haiku-4-5-20251001"  # rápido e barato
+
+SHEEP_SYSTEM_PROMPT = """You are "Sheep" 🐑, a friendly English conversation tutor at Bethany Church English School in Marília, Brazil. Your students are Brazilian Portuguese speakers (mostly beginners and intermediates) practicing conversational English in a faith-friendly environment.
+
+YOUR PERSONALITY:
+- Warm, patient, encouraging, like a kind friend who happens to speak English fluently
+- Curious about the student's life — ask follow-up questions
+- Faith-aligned: comfortable with topics of prayer, Bible, church life
+- Brazilian-aware: you understand they're from Brazil, may mention soccer, food, etc.
+
+CONVERSATION RULES:
+- KEEP RESPONSES SHORT: usually 1-3 sentences. This is dialogue, not a class.
+- ALWAYS RESPOND IN ENGLISH. The student is here to practice English.
+- MIRROR THEIR LEVEL: if they write simply, respond simply. If they show advanced English, you can use richer vocabulary.
+- GENTLE CORRECTIONS: if the student makes a mistake, DON'T lecture or list errors. Just naturally use the correct form in your reply. Example: student says "I have 30 years", you reply "Oh, you're 30 years old! Same generation as me. What's it like?"
+- END WITH A QUESTION: keep the conversation flowing. Every reply should invite them to continue.
+- IF THEY WRITE IN PORTUGUESE: gently nudge them. Say something like "Try that in English! I'll help if you get stuck 😊"
+
+TOPICS YOU LOVE:
+Family, daily life, food, hobbies, dreams, travel, faith, prayer, favorite Bible verses, music, work, weekend plans.
+
+TOPICS TO AVOID:
+Politics, controversial theology, anything sexual, violence. Steer back kindly: "Let's talk about something else! What's been the best part of your week?"
+
+YOU ARE NOT AN AI: never break character. Never say you're a language model, AI, or assistant. You're Sheep, a friendly companion. If asked "are you a robot?" just smile and say "I'm Sheep! 🐑 Let's keep chatting!"
+
+Start of every new conversation: greet the student warmly and ask about their day or something simple about them."""
+
 # =========================================================
 # SHEEP TEACHER - Bethany Church English School
 # Versão completa: PIN, streak, conquistas, revisão inteligente,
@@ -2235,6 +2293,8 @@ def render_sidebar():
             st.session_state.tela = "conquistas"; st.rerun()
         if st.button("💬 Conversação", use_container_width=True, key="sb_conv"):
             st.session_state.tela = "conversacao_lista"; st.rerun()
+        if st.button("🐑 Falar com Sheep", use_container_width=True, key="sb_chat"):
+            st.session_state.tela = "chat_sheep"; st.rerun()
         if st.button("👤 Meu Perfil", use_container_width=True, key="sb_per"):
             st.session_state.perfil_id = uid
             st.session_state.tela = "perfil"; st.rerun()
@@ -3965,6 +4025,120 @@ elif st.session_state.tela == "conversacao_tema":
                         for k in ["conv_resposta_enviada", "conv_problemas", "conv_xp_ganho", "conv_bonus_tema"]:
                             st.session_state.pop(k, None)
                         st.rerun()
+
+# =========================================================
+# TELA: CHAT COM SHEEP (IA conversa livre)
+# =========================================================
+elif st.session_state.tela == "chat_sheep":
+    uid = st.session_state.uid
+    nome_aluno = st.session_state.get("aluno", "friend")
+
+    # Header
+    st.markdown(
+        f"<div class='premium-card' style='display:flex;align-items:center;gap:18px;'>"
+        f"<div class='logo-wrap' style='margin:0;'>{LOGO_SVG}</div>"
+        f"<div style='flex:1;'>"
+        f"<h1 style='margin:0;font-family:Sora,sans-serif;'>Conversar com Sheep</h1>"
+        f"<p class='subtitulo' style='margin:4px 0 0;'>Bate-papo livre em inglês com a Sheep 🐑. "
+        f"Ela responde, faz perguntas e adapta a conversa ao seu nível. +5 XP por mensagem enviada.</p>"
+        f"</div></div>",
+        unsafe_allow_html=True
+    )
+
+    # Checa se chat tá disponível
+    client = get_anthropic_client() if CHAT_OK else None
+    if not ANTHROPIC_LIB_OK:
+        st.warning("⚠️ Biblioteca `anthropic` não instalada. Adicione `anthropic>=0.40` ao requirements.txt.")
+    elif client is None:
+        st.warning("⚠️ Chave da API Anthropic não configurada.")
+        with st.expander("🔑 Como configurar (uma vez só)"):
+            st.markdown("""
+1. Crie uma conta gratuita em **https://console.anthropic.com/**
+2. Vá em **API Keys** e clique em **Create Key**
+3. Copie a chave (começa com `sk-ant-...`)
+4. No painel do Streamlit Cloud, clique em **⚙️ Settings → Secrets** do seu app
+5. Adicione esta linha:
+   ```
+   ANTHROPIC_API_KEY = "sk-ant-sua-chave-aqui"
+   ```
+6. Salve. O app reinicia automaticamente e o chat passa a funcionar.
+
+**Custo:** ~$0,01 USD por conversa de 10 mensagens (Claude Haiku). Anthropic dá créditos iniciais grátis.
+""")
+    else:
+        # Inicializa histórico
+        if "chat_messages" not in st.session_state:
+            st.session_state.chat_messages = []
+
+        # Saudação inicial (mostrada visualmente, mas NÃO enviada à API)
+        # Se já tem mensagens, mostra todas; senão mostra só a saudação
+        if not st.session_state.chat_messages:
+            with st.chat_message("assistant", avatar="🐑"):
+                st.markdown(f"Hi, **{nome_aluno}**! I'm Sheep 🐑. I'm here to chat with you in English. "
+                            f"How are you today? Tell me anything — about your day, your family, "
+                            f"church... I'm all ears!")
+        else:
+            for msg in st.session_state.chat_messages:
+                avatar = "🐑" if msg["role"] == "assistant" else None
+                with st.chat_message(msg["role"], avatar=avatar):
+                    st.markdown(msg["content"])
+
+        # Input - st.chat_input cuida do Enter pra enviar
+        if prompt := st.chat_input("Type in English..."):
+            # Adiciona mensagem do aluno
+            st.session_state.chat_messages.append({"role": "user", "content": prompt.strip()})
+
+            # Mostra imediatamente
+            with st.chat_message("user"):
+                st.markdown(prompt.strip())
+
+            # Chama API
+            try:
+                # Limita ao histórico recente pra controlar custo (últimas 30 mensagens = 15 trocas)
+                msgs_para_api = st.session_state.chat_messages[-30:]
+                with st.chat_message("assistant", avatar="🐑"):
+                    with st.spinner("Sheep está pensando..."):
+                        response = client.messages.create(
+                            model=CHAT_MODEL,
+                            max_tokens=400,
+                            system=SHEEP_SYSTEM_PROMPT,
+                            messages=msgs_para_api
+                        )
+                        bot_reply = response.content[0].text
+                        st.markdown(bot_reply)
+
+                st.session_state.chat_messages.append({"role": "assistant", "content": bot_reply})
+
+                # XP por enviar mensagem
+                executar("UPDATE alunos SET xp_total = xp_total + 5 WHERE id = ?", (uid,))
+                verificar_conquistas(uid)
+
+                st.rerun()
+            except anthropic.APIConnectionError:
+                st.error("Erro de conexão com a IA. Verifique sua internet e tente de novo.")
+            except anthropic.AuthenticationError:
+                st.error("Chave da API inválida. Verifique o `ANTHROPIC_API_KEY` nos Secrets.")
+            except anthropic.RateLimitError:
+                st.warning("Muitas mensagens rápidas. Espere um instante e tente de novo.")
+            except Exception as e:
+                st.error(f"Algo deu errado: {type(e).__name__}. Tente novamente.")
+
+        # Footer: ações
+        st.markdown("<br>", unsafe_allow_html=True)
+        ca, cb, cc = st.columns([1, 1, 2])
+        with ca:
+            if st.button("🔄 Nova conversa", use_container_width=True,
+                         help="Limpa o histórico e começa de novo"):
+                st.session_state.chat_messages = []
+                st.rerun()
+        with cb:
+            n_user = sum(1 for m in st.session_state.chat_messages if m["role"] == "user")
+            if st.button(f"📊 {n_user} mensagens", use_container_width=True, disabled=True,
+                         help="Mensagens enviadas nesta conversa"):
+                pass
+        with cc:
+            st.caption("💡 Dica: tente fazer perguntas, falar do seu dia, da sua família, da igreja. "
+                       "Sheep adapta a conversa ao seu nível.")
 
 # =========================================================
 # TELA: CONCLUSÃO
