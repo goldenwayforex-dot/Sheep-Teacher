@@ -17,6 +17,13 @@ try:
 except ImportError:
     REPORTLAB_OK = False
 
+# libsql-experimental é opcional - usa Turso (banco SQLite na nuvem, persistente)
+try:
+    import libsql_experimental as libsql
+    LIBSQL_OK = True
+except ImportError:
+    LIBSQL_OK = False
+
 # pyspellchecker é opcional - se faltar, corretor funciona só com regras
 try:
     from spellchecker import SpellChecker
@@ -494,7 +501,22 @@ def calcular_bonus_velocidade(segundos):
 
 
 def conectar():
+    """Conecta ao banco. Se Turso (TURSO_DATABASE_URL + TURSO_AUTH_TOKEN) estiver
+    configurado, usa Turso (persistente). Caso contrário, usa SQLite local (efêmero
+    no Streamlit Cloud — perde dados quando o app reinicia)."""
+    if LIBSQL_OK:
+        turso_url = _get_secret_or_env("TURSO_DATABASE_URL")
+        turso_token = _get_secret_or_env("TURSO_AUTH_TOKEN")
+        if turso_url and turso_token:
+            # libsql usa o mesmo protocolo do sqlite3 - mesmas APIs (execute, commit, etc)
+            return libsql.connect(database=turso_url, auth_token=turso_token)
     return sqlite3.connect(DB_PATH)
+
+def backend_banco():
+    """Retorna 'turso' ou 'sqlite' indicando qual backend está ativo."""
+    if LIBSQL_OK and _get_secret_or_env("TURSO_DATABASE_URL") and _get_secret_or_env("TURSO_AUTH_TOKEN"):
+        return "turso"
+    return "sqlite"
 
 def executar(query, params=()):
     con = conectar()
@@ -2680,7 +2702,34 @@ elif st.session_state.tela == "admin":
             if k in st.session_state: del st.session_state[k]
         st.session_state.tela = "login"; st.rerun()
 
-    aba1, aba2, aba3, aba4, aba5 = st.tabs(["📊 Alunos", "❌ Questões mais erradas", "🥊 Duelos", "📦 Conteúdo", "➕ Nova Lição"])
+    # Status do banco de dados
+    backend = backend_banco()
+    if backend == "turso":
+        st.markdown(
+            "<div style='background:rgba(16,185,129,0.12);border:1px solid var(--primary);"
+            "border-radius:10px;padding:12px 16px;margin:12px 0;display:flex;align-items:center;gap:12px;'>"
+            "<div style='font-size:1.6rem;'>🛡️</div>"
+            "<div><b style='color:var(--primary);'>Banco persistente: Turso (na nuvem)</b><br>"
+            "<span style='color:var(--text-dim);font-size:0.9rem;'>Dados protegidos. "
+            "O app pode dormir/reiniciar à vontade — nada se perde.</span></div></div>",
+            unsafe_allow_html=True
+        )
+    else:
+        st.markdown(
+            "<div style='background:rgba(248,113,113,0.12);border:1px solid var(--danger);"
+            "border-radius:10px;padding:12px 16px;margin:12px 0;display:flex;align-items:start;gap:12px;'>"
+            "<div style='font-size:1.6rem;'>⚠️</div>"
+            "<div><b style='color:var(--danger);'>Banco efêmero: SQLite local</b><br>"
+            "<span style='color:var(--text-dim);font-size:0.9rem;'>"
+            "Os dados dos alunos podem ser perdidos quando o Streamlit Cloud reiniciar o app. "
+            "Configure Turso (grátis) pra resolver. "
+            "<a href='https://turso.tech/' target='_blank' style='color:var(--primary);'>turso.tech</a> → "
+            "crie banco → adicione <code>TURSO_DATABASE_URL</code> e <code>TURSO_AUTH_TOKEN</code> nos Secrets.</span>"
+            "</div></div>",
+            unsafe_allow_html=True
+        )
+
+    aba1, aba2, aba3, aba4, aba5, aba_backup = st.tabs(["📊 Alunos", "❌ Questões mais erradas", "🥊 Duelos", "📦 Conteúdo", "➕ Nova Lição", "💾 Backup"])
 
     with aba1:
         st.markdown("### Todos os alunos")
@@ -2807,6 +2856,83 @@ elif st.session_state.tela == "admin":
                     else:
                         executar("INSERT INTO modulos (titulo, nivel) VALUES (?, ?)", (novo_tit, novo_niv))
                         st.success("Módulo criado! Adicione lições na aba acima.")
+
+    with aba_backup:
+        st.markdown("### 💾 Backup do banco de dados")
+
+        if backend == "turso":
+            st.success("✅ **Você está usando Turso (banco persistente).** "
+                       "Backup é feito automaticamente pela Turso. Esta aba é opcional, mas útil "
+                       "se quiser baixar uma cópia local de segurança.")
+        else:
+            st.warning("⚠️ **Você está usando SQLite local (efêmero).** "
+                       "Os dados podem ser perdidos quando o app reiniciar. "
+                       "**Recomendação forte:** configure Turso (instruções no banner acima). "
+                       "Enquanto isso, baixe backups manuais com frequência.")
+
+        st.markdown("---")
+        st.markdown("#### 📥 Baixar banco atual")
+        st.caption("Salva um arquivo .db com TODOS os dados (alunos, progresso, XP, duelos, conversas). "
+                   "Guarde em local seguro — em caso de perda, você pode restaurar.")
+
+        # Só permite baixar se for SQLite local (Turso é via API, não tem arquivo)
+        if backend == "sqlite":
+            import os as _os
+            if _os.path.exists(DB_PATH):
+                with open(DB_PATH, "rb") as f:
+                    db_bytes = f.read()
+                tamanho_kb = len(db_bytes) / 1024
+                st.download_button(
+                    f"📥 Baixar banco_ingles.db ({tamanho_kb:.1f} KB)",
+                    data=db_bytes,
+                    file_name=f"banco_ingles_{date.today().isoformat()}.db",
+                    mime="application/x-sqlite3",
+                    use_container_width=True
+                )
+            else:
+                st.info("Banco ainda não existe (zero dados).")
+        else:
+            st.info("Backup automático: como você usa Turso, os dados ficam protegidos lá. "
+                    "Pra baixar uma cópia, use o painel da Turso em turso.tech.")
+
+        st.markdown("---")
+        st.markdown("#### 📤 Restaurar de backup")
+        st.caption("Se você baixou um backup antigo e quer restaurá-lo (por exemplo após perda de dados). "
+                   "⚠️ Isso **sobrescreve** o banco atual.")
+
+        if backend == "sqlite":
+            arquivo_up = st.file_uploader("Selecione o arquivo .db", type=["db"], key="upload_db")
+            if arquivo_up is not None:
+                col1, col2 = st.columns([1, 1])
+                with col1:
+                    if st.button("🚨 Confirmar restauração (irreversível)", type="primary", use_container_width=True):
+                        try:
+                            with open(DB_PATH, "wb") as f:
+                                f.write(arquivo_up.getbuffer())
+                            st.success("✅ Banco restaurado! Recarregue a página (F5).")
+                            st.balloons()
+                        except Exception as e:
+                            st.error(f"Erro ao restaurar: {e}")
+                with col2:
+                    st.caption(f"Arquivo: **{arquivo_up.name}** ({arquivo_up.size/1024:.1f} KB)")
+        else:
+            st.info("Pra restaurar dados no Turso, use o painel turso.tech (eles têm SQL editor próprio).")
+
+        st.markdown("---")
+        st.markdown("#### 📊 Estatísticas atuais do banco")
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            n_alunos = consultar_um("SELECT COUNT(*) FROM alunos WHERE nome != ?", (PROFESSOR_NOME,))[0]
+            st.metric("Alunos", n_alunos)
+        with col2:
+            n_prog = consultar_um("SELECT COUNT(*) FROM progresso")[0]
+            st.metric("Lições feitas", n_prog)
+        with col3:
+            n_duelos = consultar_um("SELECT COUNT(*) FROM duelos")[0]
+            st.metric("Duelos", n_duelos)
+        with col4:
+            n_conv = consultar_um("SELECT COUNT(*) FROM conversas_respondidas")[0]
+            st.metric("Conversas", n_conv)
 
 # =========================================================
 # TELA: INÍCIO / MAPA DE MÓDULOS

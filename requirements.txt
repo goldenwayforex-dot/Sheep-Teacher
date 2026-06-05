@@ -3,3 +3,4 @@ reportlab>=4.0
 pyspellchecker>=0.7
 anthropic>=0.40
 google-generativeai>=0.8
+libsql-experimental>=0.0.30
