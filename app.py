@@ -634,7 +634,9 @@ class TursoConnection:
         first = results[0]
         if first.get("type") != "ok":
             err = first.get("error", {})
-            raise RuntimeError(f"Turso SQL: {err.get('message', 'erro desconhecido')}")
+            # Usa sqlite3.OperationalError pra ser compatível com try/except existente
+            # (e.g. tratamento de "duplicate column name" em ALTER TABLE)
+            raise sqlite3.OperationalError(err.get("message", "erro SQL Turso desconhecido"))
         return first.get("response", {}).get("result", {})
 
     def execute(self, sql, params=()):
