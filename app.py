@@ -659,6 +659,7 @@ class TursoConnection:
 
 
 _TURSO_ULTIMO_ERRO = None
+_INIT_ERROS = []  # lista de erros não-fatais durante iniciar_banco
 
 def conectar():
     """Conecta ao banco. Se Turso configurado, usa TursoConnection (HTTP).
@@ -2376,26 +2377,43 @@ def iniciar_banco():
             pass
 
     # Preenche opcao_4 nulas da versão antiga
-    cur.execute("UPDATE licoes SET opcao_4 = 'None of the above' WHERE opcao_4 IS NULL")
+    try:
+        cur.execute("UPDATE licoes SET opcao_4 = 'None of the above' WHERE opcao_4 IS NULL")
+    except sqlite3.OperationalError as e:
+        _INIT_ERROS.append(f"UPDATE licoes opcao_4: {e}")
 
     # Inserir só módulos que ainda não existem (por título)
+    # Cada operação é independente - se falhar, registra mas continua
     for titulo, nivel, licoes in TRILHA:
-        eh_audio_puro = 1 if titulo in MODULOS_AUDIO_PURO else 0
-        cur.execute("SELECT id FROM modulos WHERE titulo = ?", (titulo,))
-        if cur.fetchone():
-            # módulo já existe - atualizar nível e audio_puro caso tenha mudado
-            cur.execute("UPDATE modulos SET nivel = ?, audio_puro = ? WHERE titulo = ?",
-                        (nivel, eh_audio_puro, titulo))
-            continue
-        cur.execute("INSERT INTO modulos (titulo, nivel, audio_puro) VALUES (?, ?, ?)",
-                    (titulo, nivel, eh_audio_puro))
-        mid = cur.lastrowid
-        for l in licoes:
-            explicacao = EXPLICACOES.get((titulo, l[0]), "")
-            cur.execute(
-                "INSERT INTO licoes (modulo_id, titulo_botao, pergunta, opcao_1, opcao_2, opcao_3, opcao_4, resposta_correta, explicacao) VALUES (?,?,?,?,?,?,?,?,?)",
-                (mid, l[0], l[1], l[2], l[3], l[4], l[5], l[2], explicacao)
-            )
+        try:
+            eh_audio_puro = 1 if titulo in MODULOS_AUDIO_PURO else 0
+            cur.execute("SELECT id FROM modulos WHERE titulo = ?", (titulo,))
+            existe = cur.fetchone()
+            if existe:
+                try:
+                    cur.execute("UPDATE modulos SET nivel = ?, audio_puro = ? WHERE titulo = ?",
+                                (nivel, eh_audio_puro, titulo))
+                except sqlite3.OperationalError as e:
+                    _INIT_ERROS.append(f"UPDATE modulo '{titulo}': {e}")
+                continue
+            try:
+                cur.execute("INSERT INTO modulos (titulo, nivel, audio_puro) VALUES (?, ?, ?)",
+                            (titulo, nivel, eh_audio_puro))
+                mid = cur.lastrowid
+            except sqlite3.OperationalError as e:
+                _INIT_ERROS.append(f"INSERT modulo '{titulo}': {e}")
+                continue
+            for l in licoes:
+                try:
+                    explicacao = EXPLICACOES.get((titulo, l[0]), "")
+                    cur.execute(
+                        "INSERT INTO licoes (modulo_id, titulo_botao, pergunta, opcao_1, opcao_2, opcao_3, opcao_4, resposta_correta, explicacao) VALUES (?,?,?,?,?,?,?,?,?)",
+                        (mid, l[0], l[1], l[2], l[3], l[4], l[5], l[2], explicacao)
+                    )
+                except sqlite3.OperationalError as e:
+                    _INIT_ERROS.append(f"INSERT licao '{titulo}/{l[0]}': {e}")
+        except Exception as e:
+            _INIT_ERROS.append(f"Erro processando modulo '{titulo}': {type(e).__name__}: {e}")
     con.commit(); con.close()
 
 iniciar_banco()
@@ -2902,6 +2920,16 @@ elif st.session_state.tela == "admin":
         )
 
     aba1, aba2, aba3, aba4, aba5, aba_backup = st.tabs(["📊 Alunos", "❌ Questões mais erradas", "🥊 Duelos", "📦 Conteúdo", "➕ Nova Lição", "💾 Backup"])
+
+    # Mostra erros de inicialização do banco (não fatais) se houver
+    if _INIT_ERROS:
+        with st.expander(f"⚠️ {len(_INIT_ERROS)} erros não-fatais durante inicialização do banco (clique pra ver detalhes)"):
+            st.caption("Esses erros aconteceram durante iniciar_banco() mas não impediram o app de subir. "
+                       "Útil pra debug. Se virem 'duplicate' ou 'already exists', tudo bem (são esperados quando o banco já tinha dados).")
+            for i, erro in enumerate(_INIT_ERROS[:50], 1):  # limita pra não floodar
+                st.text(f"{i}. {erro}")
+            if len(_INIT_ERROS) > 50:
+                st.caption(f"... mais {len(_INIT_ERROS) - 50} erros omitidos.")
 
     with aba1:
         st.markdown("### Todos os alunos")
