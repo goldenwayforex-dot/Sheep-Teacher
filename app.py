@@ -887,8 +887,46 @@ def remover_logo():
 
 # ============== IDIOMA DO ALUNO ==============
 
+_COLUNAS_IDIOMA_GARANTIDAS = False
+
+def _garantir_colunas_idioma():
+    """Garante idempotentemente que a coluna 'idioma' existe em alunos e modulos
+    (local + Turso). Roda só uma vez por processo (cache em memória)."""
+    global _COLUNAS_IDIOMA_GARANTIDAS
+    if _COLUNAS_IDIOMA_GARANTIDAS:
+        return
+    # 1. Local
+    try:
+        con = sqlite3.connect(DB_PATH)
+        try:
+            con.execute("ALTER TABLE alunos ADD COLUMN idioma TEXT DEFAULT 'en'")
+        except sqlite3.OperationalError:
+            pass  # já existe
+        try:
+            con.execute("ALTER TABLE modulos ADD COLUMN idioma TEXT DEFAULT 'en'")
+        except sqlite3.OperationalError:
+            pass
+        con.commit()
+        con.close()
+    except Exception as e:
+        _INIT_ERROS.append(f"_garantir_colunas_idioma local: {e}")
+    # 2. Turso
+    if backend_banco() == 'turso':
+        turso = _conectar_turso()
+        if turso:
+            for ddl in [
+                "ALTER TABLE alunos ADD COLUMN idioma TEXT DEFAULT 'en'",
+                "ALTER TABLE modulos ADD COLUMN idioma TEXT DEFAULT 'en'",
+            ]:
+                try:
+                    turso.execute(ddl)
+                except Exception:
+                    pass  # provavelmente já existe
+    _COLUNAS_IDIOMA_GARANTIDAS = True
+
 def idioma_do_aluno(uid):
     """Retorna 'en' ou 'es' baseado no que o aluno escolheu. Default: 'en'."""
+    _garantir_colunas_idioma()
     try:
         row = consultar_um("SELECT idioma FROM alunos WHERE id = ?", (uid,))
         if row and row[0] in IDIOMAS:
@@ -901,6 +939,7 @@ def set_idioma_aluno(uid, idioma):
     """Atualiza o idioma que o aluno está estudando."""
     if idioma not in IDIOMAS:
         return
+    _garantir_colunas_idioma()
     executar("UPDATE alunos SET idioma = ? WHERE id = ?", (idioma, uid))
 
 @st.cache_data(ttl=60, show_spinner=False)
@@ -917,6 +956,7 @@ def consultar_cached(query: str, params: tuple = ()):
 @st.cache_data(ttl=120, show_spinner=False)
 def listar_modulos_cached(idioma: str = "en"):
     """Lista de módulos do idioma especificado. Cache de 2min."""
+    _garantir_colunas_idioma()
     con = conectar()
     rows = con.execute(
         "SELECT id, titulo, nivel, audio_puro FROM modulos WHERE COALESCE(idioma, 'en') = ? ORDER BY id",
