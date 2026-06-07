@@ -317,6 +317,9 @@ h1, h2, h3, h4 {
 .stButton>button:hover { background-color: var(--primary) !important; color: white !important; border-color: var(--primary) !important; transform: translateY(-1px); box-shadow: 0 6px 20px rgba(16, 185, 129, 0.3); }
 .stButton>button:disabled { opacity: 0.4; cursor: not-allowed; }
 .titulo-principal { font-size: 3rem; font-weight: 800; background: linear-gradient(135deg, #F1F5F9 0%, #94A3B8 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; line-height: 1.1; margin: 8px 0; text-align: center; }
+/* Esconder o ícone de link âncora que o Streamlit adiciona em h1/h2/h3 */
+h1 a[href*="#"], h2 a[href*="#"], h3 a[href*="#"], h4 a[href*="#"] { display: none !important; }
+[data-testid="stHeaderActionElements"] { display: none !important; }
 .subtitulo { color: var(--text-dim); font-size: 1.05rem; }
 .destaque-lime { color: var(--primary); font-weight: 600; }
 .tag-nivel { display: inline-block; padding: 4px 12px; border-radius: 100px; font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
