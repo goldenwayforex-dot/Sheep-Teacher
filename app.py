@@ -766,6 +766,58 @@ def consultar_um(query, params=()):
     con.close()
     return row
 
+# ============== LOGO E NOME CUSTOMIZADOS ==============
+
+def get_config(chave: str, default: str = ""):
+    """Pega valor de texto de configuracoes (nome da escola, etc)."""
+    try:
+        row = consultar_um("SELECT valor FROM configuracoes WHERE chave = ?", (chave,))
+        return row[0] if row and row[0] else default
+    except Exception:
+        return default
+
+def set_config(chave: str, valor: str):
+    """Salva valor de texto em configuracoes."""
+    existe = consultar_um("SELECT 1 FROM configuracoes WHERE chave = ?", (chave,))
+    agora = datetime.now().isoformat()
+    if existe:
+        executar("UPDATE configuracoes SET valor = ?, atualizado_em = ? WHERE chave = ?",
+                 (valor, agora, chave))
+    else:
+        executar("INSERT INTO configuracoes (chave, valor, atualizado_em) VALUES (?, ?, ?)",
+                 (chave, valor, agora))
+
+def get_logo_html(tamanho: str = "120px"):
+    """Retorna HTML <img> com a logo customizada, ou o SVG da ovelha como fallback."""
+    try:
+        row = consultar_um(
+            "SELECT valor_blob, mime_type FROM configuracoes WHERE chave = ?", ("logo",)
+        )
+        if row and row[0]:
+            import base64
+            blob, mime = row[0], (row[1] or "image/png")
+            b64 = base64.b64encode(blob).decode("ascii")
+            return (f"<img src='data:{mime};base64,{b64}' "
+                    f"style='width:{tamanho};height:{tamanho};object-fit:contain;' />")
+    except Exception:
+        pass
+    return LOGO_SVG  # fallback: ovelha SVG padrão
+
+def salvar_logo(file_bytes: bytes, mime_type: str = "image/png"):
+    """Salva a logo customizada no banco."""
+    existe = consultar_um("SELECT 1 FROM configuracoes WHERE chave = ?", ("logo",))
+    agora = datetime.now().isoformat()
+    if existe:
+        executar("UPDATE configuracoes SET valor_blob = ?, mime_type = ?, atualizado_em = ? WHERE chave = ?",
+                 (file_bytes, mime_type, agora, "logo"))
+    else:
+        executar("INSERT INTO configuracoes (chave, valor_blob, mime_type, atualizado_em) VALUES (?, ?, ?, ?)",
+                 ("logo", file_bytes, mime_type, agora))
+
+def remover_logo():
+    """Remove a logo customizada (volta pro SVG padrão)."""
+    executar("DELETE FROM configuracoes WHERE chave = ?", ("logo",))
+
 @st.cache_data(ttl=60, show_spinner=False)
 def consultar_cached(query: str, params: tuple = ()):
     """Versão cacheada de consultar() - cache de 60s.
@@ -2395,6 +2447,14 @@ def iniciar_banco():
     cur.execute('CREATE TABLE IF NOT EXISTS progresso (aluno_id INTEGER, licao_id INTEGER, PRIMARY KEY (aluno_id, licao_id))')
     cur.execute('CREATE TABLE IF NOT EXISTS erros (aluno_id INTEGER, licao_id INTEGER, count INTEGER DEFAULT 1, ultimo_erro TEXT, PRIMARY KEY (aluno_id, licao_id))')
     cur.execute('CREATE TABLE IF NOT EXISTS conquistas (aluno_id INTEGER, badge_id TEXT, obtida_em TEXT, PRIMARY KEY (aluno_id, badge_id))')
+    # Tabela de configurações (logo customizada, nome da escola, etc)
+    cur.execute('''CREATE TABLE IF NOT EXISTS configuracoes (
+        chave TEXT PRIMARY KEY,
+        valor TEXT,
+        valor_blob BLOB,
+        mime_type TEXT,
+        atualizado_em TEXT
+    )''')
     cur.execute('''CREATE TABLE IF NOT EXISTS duelos (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         desafiante_id INTEGER NOT NULL,
@@ -2948,16 +3008,22 @@ render_sidebar()
 # TELA: LOGIN (redesenhada)
 # =========================================================
 if st.session_state.tela == "login":
+    # Logo e nome customizáveis (configurados pelo professor no admin)
+    nome_escola = get_config("nome_escola", "Bethany Church English School")
+    tagline = get_config("tagline", "Learn English. Grow in Faith.")
+    titulo_app = get_config("titulo_app", "Sheep Teacher")
+    logo_html = get_logo_html("140px")
+
     # Hero
     st.markdown("<br>", unsafe_allow_html=True)
     h1, h2, h3 = st.columns([1, 2, 1])
     with h2:
         st.markdown(f"""
         <div class='premium-card' style='text-align:center;'>
-            <div class='logo-wrap'>{LOGO_SVG}</div>
-            <h1 class='titulo-principal'>Sheep Teacher</h1>
-            <p class='subtitulo'>Bethany Church English School<br>
-            <span class='destaque-lime'>Learn English. Grow in Faith.</span></p>
+            <div class='logo-wrap' style='display:flex;justify-content:center;align-items:center;margin-bottom:8px;'>{logo_html}</div>
+            <h1 class='titulo-principal'>{titulo_app}</h1>
+            <p class='subtitulo'>{nome_escola}<br>
+            <span class='destaque-lime'>{tagline}</span></p>
         </div>
         """, unsafe_allow_html=True)
 
@@ -3104,7 +3170,10 @@ elif st.session_state.tela == "admin":
             unsafe_allow_html=True
         )
 
-    aba1, aba2, aba3, aba4, aba5, aba_backup = st.tabs(["📊 Alunos", "❌ Questões mais erradas", "🥊 Duelos", "📦 Conteúdo", "➕ Nova Lição", "💾 Backup"])
+    aba1, aba2, aba3, aba4, aba5, aba_backup, aba_personalizar = st.tabs(
+        ["📊 Alunos", "❌ Questões mais erradas", "🥊 Duelos", "📦 Conteúdo",
+         "➕ Nova Lição", "💾 Backup", "🎨 Personalizar"]
+    )
 
     # Mostra erros de inicialização do banco (não fatais) se houver
     if _INIT_ERROS:
@@ -3325,6 +3394,106 @@ elif st.session_state.tela == "admin":
         with col4:
             n_conv = consultar_um("SELECT COUNT(*) FROM conversas_respondidas")[0]
             st.metric("Conversas", n_conv)
+
+    with aba_personalizar:
+        st.markdown("### 🎨 Personalização visual")
+        st.caption("Configure o logo e textos do seu app. Tudo é salvo no banco, então persiste entre reinicializações.")
+
+        # === LOGO ===
+        st.markdown("#### 🖼️ Logo")
+        col_preview, col_upload = st.columns([1, 2])
+        with col_preview:
+            st.caption("Logo atual:")
+            st.markdown(
+                f"<div style='width:140px;height:140px;border:2px dashed var(--border);"
+                f"border-radius:12px;padding:8px;display:flex;align-items:center;justify-content:center;"
+                f"background:var(--surface);'>{get_logo_html('120px')}</div>",
+                unsafe_allow_html=True
+            )
+
+            # Botão pra remover logo customizada
+            try:
+                tem_logo_custom = consultar_um("SELECT 1 FROM configuracoes WHERE chave = ?", ("logo",))
+            except Exception:
+                tem_logo_custom = None
+            if tem_logo_custom:
+                if st.button("🗑️ Remover logo customizada", use_container_width=True):
+                    remover_logo()
+                    st.success("Logo removida! Voltou pro padrão (ovelha).")
+                    st.rerun()
+
+        with col_upload:
+            st.caption("Faça upload de uma imagem (PNG, JPG ou SVG). Recomendado: quadrada, 256×256px ou maior, fundo transparente.")
+            arquivo_logo = st.file_uploader(
+                "Selecione a imagem",
+                type=["png", "jpg", "jpeg", "svg", "webp"],
+                key="upload_logo"
+            )
+            if arquivo_logo is not None:
+                # Limite de tamanho - 500 KB (logos grandes ficam lentas)
+                if arquivo_logo.size > 500 * 1024:
+                    st.error(f"❌ Arquivo muito grande ({arquivo_logo.size/1024:.0f} KB). Máximo 500 KB. "
+                             "Comprima a imagem antes (tinypng.com pra PNG/JPG).")
+                else:
+                    st.image(arquivo_logo.getvalue(), caption=f"Preview ({arquivo_logo.size/1024:.0f} KB)", width=140)
+                    mime_map = {
+                        "png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg",
+                        "svg": "image/svg+xml", "webp": "image/webp"
+                    }
+                    ext = arquivo_logo.name.lower().split(".")[-1]
+                    mime = mime_map.get(ext, "image/png")
+                    if st.button("💾 Salvar como nova logo", type="primary", use_container_width=True):
+                        try:
+                            salvar_logo(arquivo_logo.getvalue(), mime)
+                            st.success("✅ Logo salva! Aparece na tela de login e na sidebar.")
+                            st.balloons()
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Erro ao salvar: {e}")
+
+        st.markdown("---")
+
+        # === TEXTOS ===
+        st.markdown("#### ✍️ Textos da tela de login")
+
+        with st.form("editar_textos"):
+            titulo_app_atual = get_config("titulo_app", "Sheep Teacher")
+            nome_escola_atual = get_config("nome_escola", "Bethany Church English School")
+            tagline_atual = get_config("tagline", "Learn English. Grow in Faith.")
+
+            novo_titulo = st.text_input(
+                "Título do app (aparece bem grande)",
+                value=titulo_app_atual,
+                placeholder="Sheep Teacher"
+            )
+            novo_nome = st.text_input(
+                "Nome da escola/igreja (logo abaixo do título)",
+                value=nome_escola_atual,
+                placeholder="Bethany Church English School"
+            )
+            nova_tagline = st.text_input(
+                "Frase de impacto (em destaque)",
+                value=tagline_atual,
+                placeholder="Learn English. Grow in Faith."
+            )
+
+            if st.form_submit_button("💾 Salvar textos", type="primary", use_container_width=True):
+                if novo_titulo.strip():
+                    set_config("titulo_app", novo_titulo.strip())
+                if novo_nome.strip():
+                    set_config("nome_escola", novo_nome.strip())
+                if nova_tagline.strip():
+                    set_config("tagline", nova_tagline.strip())
+                st.success("✅ Textos atualizados!")
+                st.rerun()
+
+        # Restaurar padrões
+        st.caption("Quer voltar aos textos originais?")
+        if st.button("↩️ Restaurar padrões"):
+            for chave in ["titulo_app", "nome_escola", "tagline"]:
+                executar("DELETE FROM configuracoes WHERE chave = ?", (chave,))
+            st.success("Voltou aos padrões!")
+            st.rerun()
 
 # =========================================================
 # TELA: INÍCIO / MAPA DE MÓDULOS
@@ -4441,7 +4610,7 @@ elif st.session_state.tela == "onboarding":
     slide = st.session_state.get("onboarding_slide", 0)
     slides = [
         {
-            "icone": LOGO_SVG,
+            "icone": get_logo_html("100px"),
             "titulo": f"Bem-vindo, {st.session_state.get('aluno', '')}!",
             "texto": "Aqui no <b>Sheep Teacher</b> você aprende inglês completando lições temáticas — gramática, vocabulário, frases bíblicas e muito mais.",
             "extra": "Cada módulo tem várias fases. Comece pelos básicos e desbloqueie os avançados."
