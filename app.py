@@ -4487,6 +4487,28 @@ elif st.session_state.tela == "trilha_modulo":
                     raw = 2 + 2 * math.sin(i * 0.9)
                     return max(0, min(4, int(round(raw))))
 
+                def _conector_svg(pos_de, pos_para, estado):
+                    """SVG de curva Bezier conectando duas posições de coluna (0-4).
+                    estado: 'completo' (verde), 'atual' (dourado) ou 'futuro' (cinza)."""
+                    x1 = pos_de * 20 + 10  # centro da coluna em %
+                    x2 = pos_para * 20 + 10
+                    if estado == "completo":
+                        cor = "#10B981"; op = 0.9; dash = ""
+                    elif estado == "atual":
+                        cor = "#FCD34D"; op = 0.85; dash = ""
+                    else:
+                        cor = "#64748B"; op = 0.35; dash = "stroke-dasharray='4 5'"
+                    # Curva cubic Bezier suave entre topo e fundo do conector
+                    return (
+                        f"<div style='margin:-6px 0;padding:0;line-height:0;'>"
+                        f"<svg viewBox='0 0 100 30' preserveAspectRatio='none' "
+                        f"style='width:100%;height:32px;display:block;overflow:visible;'>"
+                        f"<path d='M {x1} 0 C {x1} 15, {x2} 15, {x2} 30' "
+                        f"stroke='{cor}' stroke-width='5' stroke-linecap='round' "
+                        f"fill='none' opacity='{op}' {dash} />"
+                        f"</svg></div>"
+                    )
+
                 # Função auxiliar pra iniciar uma lição
                 def _iniciar_licao(modulo_id, idx_inicial):
                     st.session_state.trilha = consultar(
@@ -4509,12 +4531,25 @@ elif st.session_state.tela == "trilha_modulo":
                     st.button("📖", key=f"book_top_{mid}", disabled=True)
                     st.markdown(f"<div class='trilha-label'>Início</div>", unsafe_allow_html=True)
 
+                # Estado pra rastrear conectores entre passos
+                pos_anterior = 2  # livro do topo está na coluna 2
+                alcancou_anterior = True  # livro é sempre "alcançado"
+
                 # Loop pelas lições
                 for i, (lid, titulo_botao) in enumerate(licoes_mod):
                     eh_completa = lid in feitas_ids
                     eh_atual = (i == proximo_idx)
                     eh_bloqueada = (not eh_completa) and (not eh_atual)
                     posicao = _pos_zigzag(i)
+
+                    # ===== CONECTOR ANTES DA BOLINHA =====
+                    if alcancou_anterior and eh_completa:
+                        estado_conector = "completo"
+                    elif alcancou_anterior and eh_atual:
+                        estado_conector = "atual"
+                    else:
+                        estado_conector = "futuro"
+                    st.markdown(_conector_svg(pos_anterior, posicao, estado_conector), unsafe_allow_html=True)
 
                     cols = st.columns(5)
 
@@ -4545,12 +4580,20 @@ elif st.session_state.tela == "trilha_modulo":
                             st.button("🔒", key=f"trilha_step_{lid}", disabled=True, help="Complete a lição anterior")
                             st.markdown(f"<div class='trilha-label'>{titulo_botao}</div>", unsafe_allow_html=True)
 
+                    # Atualiza estado pro próximo conector
+                    pos_anterior = posicao
+                    alcancou_anterior = eh_completa
+
                     # A cada 5 lições, mostrar um baú decorativo (entre as lições)
                     if (i + 1) % 5 == 0 and i < total - 1:
-                        cols_chest = st.columns(5)
                         chest_pos = _pos_zigzag(i + 1)
+                        ja_alcancou = (feitas >= i + 1)
+                        # Conector pro baú
+                        estado_conector_chest = "completo" if (alcancou_anterior and ja_alcancou) else "futuro"
+                        st.markdown(_conector_svg(pos_anterior, chest_pos, estado_conector_chest), unsafe_allow_html=True)
+
+                        cols_chest = st.columns(5)
                         with cols_chest[chest_pos]:
-                            ja_alcancou = (feitas >= i + 1)
                             classe = "trilha-step-chest" if ja_alcancou else "trilha-step-locked"
                             st.markdown(f"<div class='{classe}'></div>", unsafe_allow_html=True)
                             st.button("🎁", key=f"chest_{mid}_{i}", disabled=True,
@@ -4559,11 +4602,18 @@ elif st.session_state.tela == "trilha_modulo":
                                 f"<div class='trilha-label'>{'🌟 Conquistado!' if ja_alcancou else f'Marco {(i+1)//5}'}</div>",
                                 unsafe_allow_html=True
                             )
+                        # Atualiza estado
+                        pos_anterior = chest_pos
+                        alcancou_anterior = ja_alcancou
+
+                # CONECTOR PRO TROFÉU FINAL
+                todas_completas = (feitas == total)
+                estado_conector_final = "completo" if (alcancou_anterior and todas_completas) else "futuro"
+                st.markdown(_conector_svg(pos_anterior, 2, estado_conector_final), unsafe_allow_html=True)
 
                 # BAÚ FINAL (decorativo)
                 cols_end = st.columns(5)
                 with cols_end[2]:
-                    todas_completas = (feitas == total)
                     classe_end = "trilha-step-chest" if todas_completas else "trilha-step-locked"
                     st.markdown(f"<div class='{classe_end}'></div>", unsafe_allow_html=True)
                     st.button("🏆", key=f"end_{mid}", disabled=True)
