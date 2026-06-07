@@ -4489,22 +4489,28 @@ elif st.session_state.tela == "trilha_modulo":
 
                 def _conector_svg(pos_de, pos_para, estado):
                     """SVG de curva Bezier conectando duas posições de coluna (0-4).
+                    Mantém proporção (sem preserveAspectRatio='none') pra a curva ficar fluida.
                     estado: 'completo' (verde), 'atual' (dourado) ou 'futuro' (cinza)."""
-                    x1 = pos_de * 20 + 10  # centro da coluna em %
-                    x2 = pos_para * 20 + 10
+                    # ViewBox de 680px (largura típica do widget). Cada coluna = 136px.
+                    x1 = pos_de * 136 + 68   # centro horizontal da coluna de partida
+                    x2 = pos_para * 136 + 68 # centro horizontal da coluna de chegada
+                    # Altura proporcional ao "salto" pra a curva ter espaço de respirar
+                    diff = abs(pos_para - pos_de)
+                    h = 60 + min(diff, 4) * 15  # 60, 75, 90, 105, 120 px
                     if estado == "completo":
-                        cor = "#10B981"; op = 0.9; dash = ""
+                        cor = "#10B981"; op = 0.95; dash = ""
                     elif estado == "atual":
-                        cor = "#FCD34D"; op = 0.85; dash = ""
+                        cor = "#FCD34D"; op = 0.9; dash = ""
                     else:
-                        cor = "#64748B"; op = 0.35; dash = "stroke-dasharray='4 5'"
-                    # Curva cubic Bezier suave entre topo e fundo do conector
+                        cor = "#64748B"; op = 0.35; dash = "stroke-dasharray='10 10'"
+                    # S-curve Bezier: tangente vertical em ambos os endpoints
+                    ctrl_y = h / 2
                     return (
-                        f"<div style='margin:-6px 0;padding:0;line-height:0;'>"
-                        f"<svg viewBox='0 0 100 30' preserveAspectRatio='none' "
-                        f"style='width:100%;height:32px;display:block;overflow:visible;'>"
-                        f"<path d='M {x1} 0 C {x1} 15, {x2} 15, {x2} 30' "
-                        f"stroke='{cor}' stroke-width='5' stroke-linecap='round' "
+                        f"<div style='margin:-12px 0;padding:0;line-height:0;'>"
+                        f"<svg viewBox='0 0 680 {h}' "
+                        f"style='width:100%;height:auto;display:block;overflow:visible;'>"
+                        f"<path d='M {x1} 0 C {x1} {ctrl_y}, {x2} {ctrl_y}, {x2} {h}' "
+                        f"stroke='{cor}' stroke-width='8' stroke-linecap='round' "
                         f"fill='none' opacity='{op}' {dash} />"
                         f"</svg></div>"
                     )
