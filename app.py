@@ -685,6 +685,13 @@ def executar(query, params=()):
     cur = con.execute(query, params)
     last = cur.lastrowid
     con.commit(); con.close()
+    # Invalida caches de leitura quando há escrita
+    try:
+        consultar_cached.clear()
+        listar_modulos_cached.clear()
+        listar_licoes_modulo_cached.clear()
+    except Exception:
+        pass
     return last
 
 def consultar(query, params=()):
@@ -698,6 +705,36 @@ def consultar_um(query, params=()):
     row = con.execute(query, params).fetchone()
     con.close()
     return row
+
+@st.cache_data(ttl=60, show_spinner=False)
+def consultar_cached(query: str, params: tuple = ()):
+    """Versão cacheada de consultar() - cache de 60s.
+    Use só pra queries de leitura cujo resultado NÃO muda com frequência
+    (ex: lista de módulos, definições de conquistas, ranking geral).
+    Invalidada automaticamente quando há qualquer escrita (executar)."""
+    con = conectar()
+    rows = con.execute(query, params).fetchall()
+    con.close()
+    return rows
+
+@st.cache_data(ttl=120, show_spinner=False)
+def listar_modulos_cached():
+    """Lista de módulos - quase nunca muda. Cache de 2min."""
+    con = conectar()
+    rows = con.execute("SELECT id, titulo, nivel, audio_puro FROM modulos ORDER BY id").fetchall()
+    con.close()
+    return rows
+
+@st.cache_data(ttl=120, show_spinner=False)
+def listar_licoes_modulo_cached(modulo_id: int):
+    """Lições de um módulo - quase nunca muda. Cache de 2min."""
+    con = conectar()
+    rows = con.execute(
+        "SELECT id, titulo_botao FROM licoes WHERE modulo_id = ? ORDER BY id",
+        (modulo_id,)
+    ).fetchall()
+    con.close()
+    return rows
 
 def hash_pin(pin: str) -> str:
     return hashlib.sha256(pin.encode("utf-8")).hexdigest()
@@ -2416,7 +2453,14 @@ def iniciar_banco():
             _INIT_ERROS.append(f"Erro processando modulo '{titulo}': {type(e).__name__}: {e}")
     con.commit(); con.close()
 
-iniciar_banco()
+@st.cache_resource
+def _iniciar_banco_uma_vez():
+    """Wrapper cached - garante que iniciar_banco() rode APENAS UMA VEZ
+    por processo, não a cada rerun. Crítico pra performance com Turso (HTTP)."""
+    iniciar_banco()
+    return True
+
+_iniciar_banco_uma_vez()
 
 # --- ESTADOS DA SESSÃO ---
 for k, v in [("tela", "login"), ("vidas", 3), ("respondido", False),
