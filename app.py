@@ -768,8 +768,42 @@ def consultar_um(query, params=()):
 
 # ============== LOGO E NOME CUSTOMIZADOS ==============
 
+_CONFIGURACOES_GARANTIDA = False
+
+def _garantir_configuracoes():
+    """Garante idempotentemente que a tabela configuracoes existe no SQLite local
+    E no Turso (se configurado). Roda só uma vez por processo (cache em memória)."""
+    global _CONFIGURACOES_GARANTIDA
+    if _CONFIGURACOES_GARANTIDA:
+        return
+    ddl = '''CREATE TABLE IF NOT EXISTS configuracoes (
+        chave TEXT PRIMARY KEY,
+        valor TEXT,
+        valor_blob BLOB,
+        mime_type TEXT,
+        atualizado_em TEXT
+    )'''
+    # 1. Cria no SQLite local
+    try:
+        con = sqlite3.connect(DB_PATH)
+        con.execute(ddl)
+        con.commit()
+        con.close()
+    except Exception as e:
+        _INIT_ERROS.append(f"_garantir_configuracoes local: {e}")
+    # 2. Cria no Turso (se configurado)
+    if backend_banco() == 'turso':
+        turso = _conectar_turso()
+        if turso:
+            try:
+                turso.execute(ddl)
+            except Exception as e:
+                _INIT_ERROS.append(f"_garantir_configuracoes turso: {e}")
+    _CONFIGURACOES_GARANTIDA = True
+
 def get_config(chave: str, default: str = ""):
     """Pega valor de texto de configuracoes (nome da escola, etc)."""
+    _garantir_configuracoes()
     try:
         row = consultar_um("SELECT valor FROM configuracoes WHERE chave = ?", (chave,))
         return row[0] if row and row[0] else default
@@ -778,6 +812,7 @@ def get_config(chave: str, default: str = ""):
 
 def set_config(chave: str, valor: str):
     """Salva valor de texto em configuracoes."""
+    _garantir_configuracoes()
     existe = consultar_um("SELECT 1 FROM configuracoes WHERE chave = ?", (chave,))
     agora = datetime.now().isoformat()
     if existe:
@@ -789,6 +824,7 @@ def set_config(chave: str, valor: str):
 
 def get_logo_html(tamanho: str = "120px"):
     """Retorna HTML <img> com a logo customizada, ou o SVG da ovelha como fallback."""
+    _garantir_configuracoes()
     try:
         row = consultar_um(
             "SELECT valor_blob, mime_type FROM configuracoes WHERE chave = ?", ("logo",)
@@ -805,6 +841,7 @@ def get_logo_html(tamanho: str = "120px"):
 
 def salvar_logo(file_bytes: bytes, mime_type: str = "image/png"):
     """Salva a logo customizada no banco."""
+    _garantir_configuracoes()
     existe = consultar_um("SELECT 1 FROM configuracoes WHERE chave = ?", ("logo",))
     agora = datetime.now().isoformat()
     if existe:
@@ -816,6 +853,7 @@ def salvar_logo(file_bytes: bytes, mime_type: str = "image/png"):
 
 def remover_logo():
     """Remove a logo customizada (volta pro SVG padrão)."""
+    _garantir_configuracoes()
     executar("DELETE FROM configuracoes WHERE chave = ?", ("logo",))
 
 @st.cache_data(ttl=60, show_spinner=False)
