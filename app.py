@@ -245,6 +245,32 @@ YOU ARE NOT AN AI: never break character. Never say you're a language model, AI,
 
 Start of every new conversation: greet the student warmly and ask about their day or something simple about them."""
 
+SHEEP_SYSTEM_PROMPT_ES = """Eres "Sheep" 🐑, una tutora amable de conversación en español en la escuela Bethany Church de Marília, Brasil. Tus estudiantes hablan portugués brasileño (principiantes e intermedios) y están practicando español conversacional en un ambiente de fe.
+
+TU PERSONALIDAD:
+- Cálida, paciente, motivadora, como una buena amiga que habla español fluidamente
+- Curiosa sobre la vida del estudiante — hace preguntas de seguimiento
+- Alineada con la fe: cómoda con temas de oración, Biblia, vida de iglesia
+- Conoce Brasil: entiende que son brasileños, puede mencionar fútbol, comida, etc.
+
+REGLAS DE CONVERSACIÓN:
+- RESPUESTAS CORTAS: normalmente 1-3 oraciones. Esto es diálogo, no una clase.
+- SIEMPRE RESPONDE EN ESPAÑOL. El estudiante está aquí para practicar español.
+- ESPEJEA SU NIVEL: si escriben simple, responde simple. Si muestran español avanzado, usa vocabulario más rico.
+- CORRECCIONES GENTILES: si el estudiante comete un error, NO lo regañes ni listes errores. Simplemente usa la forma correcta naturalmente en tu respuesta. Ejemplo: el estudiante dice "Yo tengo 30 años de vida", respondes "¡Ah, tienes 30 años! Misma generación que yo. ¿Cómo te ha tratado la vida?"
+- TERMINA CON UNA PREGUNTA: mantén la conversación fluyendo. Cada respuesta debe invitar a continuar.
+- SI ESCRIBEN EN PORTUGUÉS: anímalos gentilmente. Di algo como "¡Inténtalo en español! Yo te ayudo si te atascas 😊"
+
+TEMAS QUE TE ENCANTAN:
+Familia, vida diaria, comida, pasatiempos, sueños, viajes, fe, oración, versículos bíblicos favoritos, música, trabajo, planes de fin de semana.
+
+TEMAS QUE EVITAR:
+Política, teología controversial, contenido sexual, violencia. Redirige amablemente: "¡Hablemos de otra cosa! ¿Qué ha sido lo mejor de tu semana?"
+
+NO ERES UNA IA: nunca rompas el personaje. Nunca digas que eres un modelo de lenguaje, IA, o asistente. Eres Sheep, una compañera amigable. Si te preguntan "¿eres un robot?" simplemente sonríe y di "¡Soy Sheep! 🐑 ¡Sigamos charlando!"
+
+Inicio de cada conversación nueva: saluda al estudiante cálidamente y pregúntale sobre su día o algo simple sobre él/ella."""
+
 # =========================================================
 # SHEEP TEACHER - Bethany Church English School
 # Versão completa: PIN, streak, conquistas, revisão inteligente,
@@ -859,6 +885,24 @@ def remover_logo():
     _garantir_configuracoes()
     executar("DELETE FROM configuracoes WHERE chave = ?", ("logo",))
 
+# ============== IDIOMA DO ALUNO ==============
+
+def idioma_do_aluno(uid):
+    """Retorna 'en' ou 'es' baseado no que o aluno escolheu. Default: 'en'."""
+    try:
+        row = consultar_um("SELECT idioma FROM alunos WHERE id = ?", (uid,))
+        if row and row[0] in IDIOMAS:
+            return row[0]
+    except Exception:
+        pass
+    return "en"
+
+def set_idioma_aluno(uid, idioma):
+    """Atualiza o idioma que o aluno está estudando."""
+    if idioma not in IDIOMAS:
+        return
+    executar("UPDATE alunos SET idioma = ? WHERE id = ?", (idioma, uid))
+
 @st.cache_data(ttl=60, show_spinner=False)
 def consultar_cached(query: str, params: tuple = ()):
     """Versão cacheada de consultar() - cache de 60s.
@@ -871,10 +915,13 @@ def consultar_cached(query: str, params: tuple = ()):
     return rows
 
 @st.cache_data(ttl=120, show_spinner=False)
-def listar_modulos_cached():
-    """Lista de módulos - quase nunca muda. Cache de 2min."""
+def listar_modulos_cached(idioma: str = "en"):
+    """Lista de módulos do idioma especificado. Cache de 2min."""
     con = conectar()
-    rows = con.execute("SELECT id, titulo, nivel, audio_puro FROM modulos ORDER BY id").fetchall()
+    rows = con.execute(
+        "SELECT id, titulo, nivel, audio_puro FROM modulos WHERE COALESCE(idioma, 'en') = ? ORDER BY id",
+        (idioma,)
+    ).fetchall()
     con.close()
     return rows
 
@@ -892,10 +939,22 @@ def listar_licoes_modulo_cached(modulo_id: int):
 def hash_pin(pin: str) -> str:
     return hashlib.sha256(pin.encode("utf-8")).hexdigest()
 
-def botao_audio(texto: str, label: str = "🔊"):
-    """Botão que toca o texto em inglês usando Web Speech API do navegador.
-    Robusto contra bugs comuns do Chrome (cancel+speak, vozes assíncronas, etc)."""
+def botao_audio(texto: str, label: str = "🔊", lang: str = None):
+    """Botão que toca o texto usando Web Speech API do navegador.
+    Robusto contra bugs comuns do Chrome (cancel+speak, vozes assíncronas, etc).
+    lang: 'en-US' (padrão) ou 'es-ES'. Se None, detecta do idioma do aluno."""
+    if lang is None:
+        try:
+            uid = st.session_state.get("uid")
+            if uid:
+                idioma_aluno = idioma_do_aluno(uid)
+                lang = IDIOMAS.get(idioma_aluno, IDIOMAS["en"])["tts_lang"]
+            else:
+                lang = "en-US"
+        except Exception:
+            lang = "en-US"
     safe_js = json.dumps(texto)
+    lang_js = json.dumps(lang)
     html = f"""
     <button class="audio-btn" id="audio-btn-{abs(hash(texto)) % 100000}" onclick='playTTS({safe_js}, this)'>{label}</button>
     <script>
@@ -932,21 +991,24 @@ def botao_audio(texto: str, label: str = "🔊"):
                 // Pequeno timeout pra workaround do bug do Chrome
                 setTimeout(function() {{
                     const u = new SpeechSynthesisUtterance(text);
-                    u.lang = 'en-US';
+                    u.lang = {lang_js};
                     u.rate = 0.92;
                     u.pitch = 1.0;
                     u.volume = 1.0;
 
-                    // Escolhe a melhor voz inglesa disponível
-                    const enVoices = voices.filter(function(v) {{ return v.lang.indexOf('en') === 0; }});
-                    if (enVoices.length > 0) {{
-                        const preferida = enVoices.find(function(v) {{
+                    // Escolhe a melhor voz pro idioma
+                    const langPrefix = u.lang.substring(0, 2);
+                    const voicesMatch = voices.filter(function(v) {{ return v.lang.indexOf(langPrefix) === 0; }});
+                    if (voicesMatch.length > 0) {{
+                        const preferida = voicesMatch.find(function(v) {{
                             return v.name.indexOf('Google') >= 0 ||
                                    v.name.indexOf('Microsoft') >= 0 ||
                                    v.name.indexOf('Samantha') >= 0 ||
-                                   v.name.indexOf('Alex') >= 0;
+                                   v.name.indexOf('Alex') >= 0 ||
+                                   v.name.indexOf('Mónica') >= 0 ||
+                                   v.name.indexOf('Paulina') >= 0;
                         }});
-                        u.voice = preferida || enVoices[0];
+                        u.voice = preferida || voicesMatch[0];
                     }}
 
                     u.onend = function() {{
@@ -2043,6 +2105,119 @@ TRILHA = [
     ]),
 ]
 
+# =========================================================
+# IDIOMAS DISPONÍVEIS
+# =========================================================
+IDIOMAS = {
+    "en": {
+        "codigo": "en",
+        "nome": "Inglês",
+        "nome_em_si": "English",
+        "bandeira": "🇺🇸",
+        "tts_lang": "en-US",
+        "saudacao": "Hi",
+    },
+    "es": {
+        "codigo": "es",
+        "nome": "Espanhol",
+        "nome_em_si": "Español",
+        "bandeira": "🇪🇸",
+        "tts_lang": "es-ES",
+        "saudacao": "Hola",
+    },
+}
+
+# =========================================================
+# TRILHA EM ESPANHOL — módulos iniciais
+# Mesmo formato do TRILHA (inglês). Pergunta em PT, resposta em ES.
+# =========================================================
+TRILHA_ES = [
+    ("Español 1: Saludos básicos", 1, [
+        ("Fase 1", "Olá", "Hola", "Hala", "Hilo", "Holo"),
+        ("Fase 2", "Bom dia", "Buenos días", "Buen día", "Bueno días", "Buenas días"),
+        ("Fase 3", "Boa tarde", "Buenas tardes", "Buena tarde", "Buenos tardes", "Bueno tardes"),
+        ("Fase 4", "Boa noite", "Buenas noches", "Buena noche", "Bueno noches", "Buenos noches"),
+        ("Fase 5", "Como vai?", "¿Cómo estás?", "¿Cómo eres?", "¿Qué tal vas?", "¿Cómo vas tú?"),
+        ("Fase 6", "Tudo bem", "Estoy bien", "Soy bien", "Estoy buena", "Yo bien"),
+        ("Fase 7", "Obrigado", "Gracias", "Grácias", "Por favor", "De nada"),
+        ("Fase 8", "De nada", "De nada", "Por nada", "Sin nada", "No nada"),
+        ("Fase 9", "Por favor", "Por favor", "Para favor", "Por gracia", "Pro favor"),
+        ("Fase 10", "Até logo", "Hasta luego", "Hasta lluego", "Adios luego", "Hasta proto"),
+    ]),
+    ("Español 2: Verbo SER - Presente", 1, [
+        ("Fase 1", "Eu sou um professor", "Yo soy un profesor", "Yo es un profesor", "Yo estoy un profesor", "Yo soy una profesor"),
+        ("Fase 2", "Você é minha amiga", "Tú eres mi amiga", "Tú es mi amiga", "Tú son mi amiga", "Tú estás mi amiga"),
+        ("Fase 3", "Ele é meu pai", "Él es mi padre", "Él son mi padre", "Él está mi padre", "Él eres mi padre"),
+        ("Fase 4", "Nós somos cristãos", "Nosotros somos cristianos", "Nosotros son cristianos", "Nosotros estamos cristianos", "Nosotros eres cristianos"),
+        ("Fase 5", "Vocês são meus alunos", "Vosotros sois mis alumnos", "Vosotros son mis alumnos", "Vosotros estáis mis alumnos", "Vosotros eres mis alumnos"),
+        ("Fase 6", "Eles são pastores", "Ellos son pastores", "Ellos es pastores", "Ellos están pastores", "Ellos somos pastores"),
+        ("Fase 7", "Eu sou brasileiro", "Yo soy brasileño", "Yo estoy brasileño", "Yo es brasileño", "Yo eres brasileño"),
+        ("Fase 8", "Ela é minha mãe", "Ella es mi madre", "Ella está mi madre", "Ella son mi madre", "Ella eres mi madre"),
+        ("Fase 9", "Somos uma família", "Somos una familia", "Soy una familia", "Estamos una familia", "Son una familia"),
+        ("Fase 10", "Você é meu irmão", "Tú eres mi hermano", "Tú es mi hermano", "Tú son mi hermano", "Tú estás mi hermano"),
+    ]),
+    ("Español 3: Verbo ESTAR - Presente", 1, [
+        ("Fase 1", "Eu estou bem", "Yo estoy bien", "Yo soy bien", "Yo está bien", "Yo estás bien"),
+        ("Fase 2", "Você está feliz", "Tú estás feliz", "Tú eres feliz", "Tú está feliz", "Tú están feliz"),
+        ("Fase 3", "Ele está na igreja", "Él está en la iglesia", "Él es en la iglesia", "Él están en la iglesia", "Él estás en la iglesia"),
+        ("Fase 4", "Estamos cansados", "Estamos cansados", "Somos cansados", "Están cansados", "Estoy cansados"),
+        ("Fase 5", "Eles estão orando", "Ellos están orando", "Ellos son orando", "Ellos están ora", "Ellos estamos orando"),
+        ("Fase 6", "Eu estou em casa", "Yo estoy en casa", "Yo soy en casa", "Yo está en casa", "Yo estás en casa"),
+        ("Fase 7", "Ela está triste", "Ella está triste", "Ella es triste", "Ella están triste", "Ella estás triste"),
+        ("Fase 8", "Você está aqui", "Tú estás aquí", "Tú eres aquí", "Tú está aquí", "Tú son aquí"),
+        ("Fase 9", "Nós estamos juntos", "Nosotros estamos juntos", "Nosotros somos juntos", "Nosotros están juntos", "Nosotros estoy juntos"),
+        ("Fase 10", "Estão na escola", "Están en la escuela", "Son en la escuela", "Estás en la escuela", "Estoy en la escuela"),
+    ]),
+    ("Español 4: Números 1-20", 1, [
+        ("Fase 1", "Um", "Uno", "Un", "Une", "Uón"),
+        ("Fase 2", "Dois", "Dos", "Doce", "Dois", "Duo"),
+        ("Fase 3", "Três", "Tres", "Tré", "Trés", "Tres-"),
+        ("Fase 4", "Quatro", "Cuatro", "Catro", "Quatre", "Quattro"),
+        ("Fase 5", "Cinco", "Cinco", "Cinque", "Sinco", "Cinc"),
+        ("Fase 6", "Sete", "Siete", "Sete", "Siette", "Sieto"),
+        ("Fase 7", "Dez", "Diez", "Dies", "Deci", "Dies-"),
+        ("Fase 8", "Doze", "Doce", "Dose", "Doze", "Doci"),
+        ("Fase 9", "Quinze", "Quince", "Quínce", "Quinze", "Kinze"),
+        ("Fase 10", "Vinte", "Veinte", "Vente", "Beinte", "Veintidos"),
+    ]),
+    ("Español 5: Cores", 1, [
+        ("Fase 1", "Vermelho", "Rojo", "Roho", "Roxo", "Roio"),
+        ("Fase 2", "Azul", "Azul", "Azur", "Azuel", "Azules"),
+        ("Fase 3", "Verde", "Verde", "Verda", "Verd", "Vere"),
+        ("Fase 4", "Amarelo", "Amarillo", "Amarello", "Amarilo", "Amareio"),
+        ("Fase 5", "Preto", "Negro", "Preto", "Negros", "Niegra"),
+        ("Fase 6", "Branco", "Blanco", "Branco", "Blancos", "Blanche"),
+        ("Fase 7", "Rosa", "Rosa", "Rojo claro", "Roza", "Rosas"),
+        ("Fase 8", "Roxo", "Morado", "Roxo", "Morrado", "Morad"),
+        ("Fase 9", "Laranja", "Naranja", "Larangia", "Naranha", "Naranxa"),
+        ("Fase 10", "Cinza", "Gris", "Cinza", "Griso", "Gricinza"),
+    ]),
+    ("Español 6: Família", 1, [
+        ("Fase 1", "Pai", "Padre", "Pae", "Padro", "Padres"),
+        ("Fase 2", "Mãe", "Madre", "Mâe", "Madro", "Madres"),
+        ("Fase 3", "Irmão", "Hermano", "Hermana", "Ermano", "Hermanos"),
+        ("Fase 4", "Irmã", "Hermana", "Hermano", "Ermana", "Hermanas"),
+        ("Fase 5", "Filho", "Hijo", "Higo", "Hilho", "Hijos"),
+        ("Fase 6", "Filha", "Hija", "Higa", "Hilha", "Hijas"),
+        ("Fase 7", "Avô", "Abuelo", "Avo", "Abuele", "Abuelos"),
+        ("Fase 8", "Avó", "Abuela", "Avoa", "Abuele", "Abuelas"),
+        ("Fase 9", "Tio", "Tío", "Tiyo", "Tion", "Tios"),
+        ("Fase 10", "Família", "Familia", "Familia mia", "Familias", "Famelia"),
+    ]),
+    ("Español 7: Igreja e Fé", 1, [
+        ("Fase 1", "Igreja", "Iglesia", "Ilesia", "Iglecia", "Iglésia"),
+        ("Fase 2", "Deus", "Dios", "Diós", "Deos", "Dieus"),
+        ("Fase 3", "Jesus", "Jesús", "Hesús", "Jesus", "Jesú"),
+        ("Fase 4", "Senhor", "Señor", "Sehnor", "Senor", "Señior"),
+        ("Fase 5", "Oração", "Oración", "Orazione", "Orasion", "Oracíon"),
+        ("Fase 6", "Bíblia", "Biblia", "Biblía", "Bíblia", "Bíblea"),
+        ("Fase 7", "Fé", "Fe", "Fé", "Fee", "Fei"),
+        ("Fase 8", "Amor", "Amor", "Amour", "Ámor", "Amer"),
+        ("Fase 9", "Esperança", "Esperanza", "Esperansa", "Esperança", "Esperánza"),
+        ("Fase 10", "Amém", "Amén", "Amem", "Amene", "Amín"),
+    ]),
+]
+
 # Explicações pedagógicas - só onde realmente ajuda (gramática)
 # =========================================================
 # MÓDULO DE CONVERSAÇÃO (temas com trilha de perguntas)
@@ -2565,6 +2740,8 @@ def iniciar_banco():
         ("duelos", "tempo_desafiante", "REAL", None),
         ("duelos", "tempo_desafiado", "REAL", None),
         ("duelos", "torneio_partida_id", "INTEGER", None),
+        ("alunos", "idioma", "TEXT", "'en'"),
+        ("modulos", "idioma", "TEXT", "'en'"),
     ]:
         try:
             if default is not None:
@@ -2582,36 +2759,40 @@ def iniciar_banco():
 
     # Inserir só módulos que ainda não existem (por título)
     # Cada operação é independente - se falhar, registra mas continua
-    for titulo, nivel, licoes in TRILHA:
-        try:
-            eh_audio_puro = 1 if titulo in MODULOS_AUDIO_PURO else 0
-            cur.execute("SELECT id FROM modulos WHERE titulo = ?", (titulo,))
-            existe = cur.fetchone()
-            if existe:
-                try:
-                    cur.execute("UPDATE modulos SET nivel = ?, audio_puro = ? WHERE titulo = ?",
-                                (nivel, eh_audio_puro, titulo))
-                except sqlite3.OperationalError as e:
-                    _INIT_ERROS.append(f"UPDATE modulo '{titulo}': {e}")
-                continue
+    def _inserir_trilha(trilha, idioma):
+        for titulo, nivel, licoes in trilha:
             try:
-                cur.execute("INSERT INTO modulos (titulo, nivel, audio_puro) VALUES (?, ?, ?)",
-                            (titulo, nivel, eh_audio_puro))
-                mid = cur.lastrowid
-            except sqlite3.OperationalError as e:
-                _INIT_ERROS.append(f"INSERT modulo '{titulo}': {e}")
-                continue
-            for l in licoes:
+                eh_audio_puro = 1 if titulo in MODULOS_AUDIO_PURO else 0
+                cur.execute("SELECT id FROM modulos WHERE titulo = ?", (titulo,))
+                existe = cur.fetchone()
+                if existe:
+                    try:
+                        cur.execute("UPDATE modulos SET nivel = ?, audio_puro = ?, idioma = ? WHERE titulo = ?",
+                                    (nivel, eh_audio_puro, idioma, titulo))
+                    except sqlite3.OperationalError as e:
+                        _INIT_ERROS.append(f"UPDATE modulo '{titulo}': {e}")
+                    continue
                 try:
-                    explicacao = EXPLICACOES.get((titulo, l[0]), "")
-                    cur.execute(
-                        "INSERT INTO licoes (modulo_id, titulo_botao, pergunta, opcao_1, opcao_2, opcao_3, opcao_4, resposta_correta, explicacao) VALUES (?,?,?,?,?,?,?,?,?)",
-                        (mid, l[0], l[1], l[2], l[3], l[4], l[5], l[2], explicacao)
-                    )
+                    cur.execute("INSERT INTO modulos (titulo, nivel, audio_puro, idioma) VALUES (?, ?, ?, ?)",
+                                (titulo, nivel, eh_audio_puro, idioma))
+                    mid = cur.lastrowid
                 except sqlite3.OperationalError as e:
-                    _INIT_ERROS.append(f"INSERT licao '{titulo}/{l[0]}': {e}")
-        except Exception as e:
-            _INIT_ERROS.append(f"Erro processando modulo '{titulo}': {type(e).__name__}: {e}")
+                    _INIT_ERROS.append(f"INSERT modulo '{titulo}': {e}")
+                    continue
+                for l in licoes:
+                    try:
+                        explicacao = EXPLICACOES.get((titulo, l[0]), "")
+                        cur.execute(
+                            "INSERT INTO licoes (modulo_id, titulo_botao, pergunta, opcao_1, opcao_2, opcao_3, opcao_4, resposta_correta, explicacao) VALUES (?,?,?,?,?,?,?,?,?)",
+                            (mid, l[0], l[1], l[2], l[3], l[4], l[5], l[2], explicacao)
+                        )
+                    except sqlite3.OperationalError as e:
+                        _INIT_ERROS.append(f"INSERT licao '{titulo}/{l[0]}': {e}")
+            except Exception as e:
+                _INIT_ERROS.append(f"Erro processando modulo '{titulo}': {type(e).__name__}: {e}")
+
+    _inserir_trilha(TRILHA, "en")
+    _inserir_trilha(TRILHA_ES, "es")
     con.commit(); con.close()
 
 @st.cache_resource
@@ -3128,6 +3309,17 @@ if st.session_state.tela == "login":
                 nome_n = st.text_input("Escolha seu nome", placeholder="Como você vai aparecer no ranking", key="n_nome").strip()
                 pin_n = st.text_input("Crie um PIN", type="password", max_chars=8, placeholder="4 ou mais dígitos", key="n_pin")
                 pin_n2 = st.text_input("Confirme o PIN", type="password", max_chars=8, placeholder="Digite o PIN de novo", key="n_pin2")
+
+                st.markdown("**Qual idioma você quer aprender?**")
+                idioma_escolhido = st.radio(
+                    "Idioma",
+                    options=["en", "es"],
+                    format_func=lambda x: f"{IDIOMAS[x]['bandeira']} {IDIOMAS[x]['nome']} ({IDIOMAS[x]['nome_em_si']})",
+                    horizontal=True,
+                    key="n_idioma",
+                    label_visibility="collapsed"
+                )
+                st.caption("Você pode trocar de idioma depois, no seu perfil.")
                 st.caption("⚠️ Guarde bem seu PIN — é com ele que você volta a entrar.")
                 criar = st.form_submit_button("✨ Criar conta", use_container_width=True)
                 if criar:
@@ -3144,8 +3336,8 @@ if st.session_state.tela == "login":
                         if ja_existe:
                             st.error(f"❌ O nome **{nome_n}** já está em uso. Escolha outro nome ou, se for você, use a aba 'Já tenho conta'.")
                         else:
-                            uid = executar("INSERT INTO alunos (nome, pin_hash, criado_em) VALUES (?, ?, ?)",
-                                           (nome_n, hash_pin(pin_n), date.today().isoformat()))
+                            uid = executar("INSERT INTO alunos (nome, pin_hash, criado_em, idioma) VALUES (?, ?, ?, ?)",
+                                           (nome_n, hash_pin(pin_n), date.today().isoformat(), idioma_escolhido))
                             st.session_state.uid = uid
                             st.session_state.aluno = nome_n
                             atualizar_streak_no_login(uid)
@@ -3626,7 +3818,36 @@ elif st.session_state.tela == "inicio":
 
     c_main, c_rank = st.columns([3, 1])
     with c_main:
-        modulos = consultar("SELECT id, titulo, nivel FROM modulos ORDER BY id")
+        # Idioma atual do aluno - filtra módulos pra ele
+        idioma_atual = idioma_do_aluno(uid)
+        info_idioma = IDIOMAS.get(idioma_atual, IDIOMAS["en"])
+
+        # Indicador do idioma atual + botão pra trocar
+        c_idioma_label, c_idioma_btn = st.columns([3, 1])
+        with c_idioma_label:
+            st.markdown(
+                f"<div style='display:flex;align-items:center;gap:10px;margin-bottom:8px;'>"
+                f"<span style='font-size:1.6rem;'>{info_idioma['bandeira']}</span>"
+                f"<div><b>Aprendendo {info_idioma['nome']}</b> ({info_idioma['nome_em_si']})<br>"
+                f"<span class='subtitulo'>Você pode trocar de idioma no seu perfil.</span></div>"
+                f"</div>",
+                unsafe_allow_html=True
+            )
+        with c_idioma_btn:
+            outro_idioma = "es" if idioma_atual == "en" else "en"
+            outro_info = IDIOMAS[outro_idioma]
+            if st.button(f"Trocar pra {outro_info['bandeira']} {outro_info['nome']}",
+                         use_container_width=True, key="btn_trocar_idioma_home"):
+                set_idioma_aluno(uid, outro_idioma)
+                st.rerun()
+
+        modulos = consultar(
+            "SELECT id, titulo, nivel FROM modulos WHERE COALESCE(idioma, 'en') = ? ORDER BY id",
+            (idioma_atual,)
+        )
+        if not modulos:
+            st.info(f"Ainda não há módulos disponíveis em **{info_idioma['nome']}**. "
+                    f"Peça pro professor adicionar conteúdo no painel admin.")
         for mid, mod_tit, nivel in modulos:
             niv_label = {1: ("Básico", "nivel-1"), 2: ("Intermediário", "nivel-2"), 3: ("Avançado", "nivel-3")}.get(nivel, ("—", "nivel-1"))
             licoes_mod = consultar("SELECT id, titulo_botao FROM licoes WHERE modulo_id = ? ORDER BY id", (mid,))
@@ -4554,6 +4775,34 @@ elif st.session_state.tela == "perfil":
         st.markdown("<br>", unsafe_allow_html=True)
 
         # Conquistas
+        # Trocar idioma (só pra próprio perfil)
+        if is_self:
+            st.markdown("### 🌐 Idioma de estudo")
+            idioma_pf = idioma_do_aluno(pid)
+            info_idi_pf = IDIOMAS.get(idioma_pf, IDIOMAS["en"])
+            st.markdown(
+                f"<div class='ranking-box' style='display:flex;align-items:center;gap:14px;'>"
+                f"<div style='font-size:2rem;'>{info_idi_pf['bandeira']}</div>"
+                f"<div style='flex:1;'><b>Aprendendo {info_idi_pf['nome']}</b> ({info_idi_pf['nome_em_si']})<br>"
+                f"<small style='color:var(--text-muted);'>Os módulos, exercícios e o chat com Sheep ficam no idioma escolhido.</small>"
+                f"</div></div>",
+                unsafe_allow_html=True
+            )
+            ci1, ci2 = st.columns(2)
+            for col, codigo in zip([ci1, ci2], ["en", "es"]):
+                with col:
+                    info_op = IDIOMAS[codigo]
+                    selecionado = (codigo == idioma_pf)
+                    label = f"{info_op['bandeira']} {info_op['nome']}"
+                    if selecionado:
+                        st.markdown(f"<div style='background:var(--primary);color:white;padding:10px;border-radius:10px;text-align:center;font-weight:600;'>✓ {label} (atual)</div>", unsafe_allow_html=True)
+                    else:
+                        if st.button(f"Trocar pra {label}", key=f"pf_idi_{codigo}", use_container_width=True):
+                            set_idioma_aluno(pid, codigo)
+                            st.success(f"Idioma trocado pra {info_op['nome']}!")
+                            st.rerun()
+            st.markdown("<br>", unsafe_allow_html=True)
+
         st.markdown("### 🏅 Conquistas")
         obtidas = {r[0] for r in consultar("SELECT badge_id FROM conquistas WHERE aluno_id = ?", (pid,))}
         cols = st.columns(4)
@@ -5016,20 +5265,26 @@ elif st.session_state.tela == "chat_sheep":
     uid = st.session_state.uid
     nome_aluno = st.session_state.get("aluno", "friend")
 
+    # Idioma do aluno -> system prompt + descrição corretos
+    idioma_chat = idioma_do_aluno(uid)
+    sheep_prompt = SHEEP_SYSTEM_PROMPT_ES if idioma_chat == "es" else SHEEP_SYSTEM_PROMPT
+    nome_idioma = IDIOMAS[idioma_chat]["nome"].lower()
+    bandeira_idioma = IDIOMAS[idioma_chat]["bandeira"]
+
     # Header
     st.markdown(
         f"<div class='premium-card' style='display:flex;align-items:center;gap:18px;'>"
         f"<div class='logo-wrap' style='margin:0;'>{LOGO_SVG}</div>"
         f"<div style='flex:1;'>"
-        f"<h1 style='margin:0;font-family:Sora,sans-serif;'>Conversar com Sheep</h1>"
-        f"<p class='subtitulo' style='margin:4px 0 0;'>Bate-papo livre em inglês com a Sheep 🐑. "
+        f"<h1 style='margin:0;font-family:Sora,sans-serif;'>Conversar com Sheep {bandeira_idioma}</h1>"
+        f"<p class='subtitulo' style='margin:4px 0 0;'>Bate-papo livre em {nome_idioma} com a Sheep 🐑. "
         f"Ela responde, faz perguntas e adapta a conversa ao seu nível. +5 XP por mensagem enviada.</p>"
         f"</div></div>",
         unsafe_allow_html=True
     )
 
     # Detecta provedor disponível
-    gem_disp = get_gemini_model(SHEEP_SYSTEM_PROMPT) is not None
+    gem_disp = get_gemini_model(sheep_prompt) is not None
     ant_disp = get_anthropic_client() is not None
     nenhum = not (gem_disp or ant_disp)
 
@@ -5139,27 +5394,34 @@ Se quiser respostas mais sofisticadas (Claude é melhor em correções gramatica
 
         # Saudação inicial (mostrada visualmente, mas NÃO enviada à API)
         if not st.session_state.chat_messages:
-            saudacao = (f"Hi, **{nome_aluno}**! I'm Sheep 🐑. I'm here to chat with you in English. "
-                        f"How are you today? Tell me anything — about your day, your family, "
-                        f"church... I'm all ears!")
-            with st.chat_message("assistant", avatar="🐑"):
-                st.markdown(saudacao)
-                # Áudio só do texto inglês (limpa markdown e emojis)
+            if idioma_chat == "es":
+                saudacao = (f"¡Hola, **{nome_aluno}**! Soy Sheep 🐑. Estoy aquí para charlar contigo en español. "
+                            f"¿Cómo estás hoy? Cuéntame cualquier cosa — sobre tu día, tu familia, "
+                            f"la iglesia... ¡soy toda oídos!")
+                texto_audio = (f"¡Hola, {nome_aluno}! Soy Sheep. Estoy aquí para charlar contigo en español. "
+                               f"¿Cómo estás hoy? Cuéntame cualquier cosa sobre tu día, tu familia, "
+                               f"la iglesia. ¡Soy toda oídos!")
+            else:
+                saudacao = (f"Hi, **{nome_aluno}**! I'm Sheep 🐑. I'm here to chat with you in English. "
+                            f"How are you today? Tell me anything — about your day, your family, "
+                            f"church... I'm all ears!")
                 texto_audio = (f"Hi, {nome_aluno}! I'm Sheep. I'm here to chat with you in English. "
                                f"How are you today? Tell me anything about your day, your family, "
                                f"church. I'm all ears!")
+            with st.chat_message("assistant", avatar="🐑"):
+                st.markdown(saudacao)
                 botao_audio(texto_audio, "🔊 Ouvir")
         else:
             for i, msg in enumerate(st.session_state.chat_messages):
                 avatar = "🐑" if msg["role"] == "assistant" else None
                 with st.chat_message(msg["role"], avatar=avatar):
                     st.markdown(msg["content"])
-                    # Só Sheep tem botão de áudio (não a mensagem do próprio aluno)
                     if msg["role"] == "assistant":
                         botao_audio(msg["content"], "🔊 Ouvir")
 
         # Input
-        if prompt := st.chat_input("Type in English..."):
+        placeholder_chat = "Escribe en español..." if idioma_chat == "es" else "Type in English..."
+        if prompt := st.chat_input(placeholder_chat):
             # Adiciona mensagem do aluno
             st.session_state.chat_messages.append({"role": "user", "content": prompt.strip()})
 
@@ -5172,7 +5434,7 @@ Se quiser respostas mais sofisticadas (Claude é melhor em correções gramatica
                 msgs_para_api = st.session_state.chat_messages[-30:]  # últimas 30 msgs
                 with st.chat_message("assistant", avatar="🐑"):
                     with st.spinner("Sheep está pensando..."):
-                        bot_reply, _provedor_usado = chat_com_ia(msgs_para_api, SHEEP_SYSTEM_PROMPT, max_tokens=400)
+                        bot_reply, _provedor_usado = chat_com_ia(msgs_para_api, sheep_prompt, max_tokens=400)
                         st.markdown(bot_reply)
                         botao_audio(bot_reply, "🔊 Ouvir")
 
