@@ -316,7 +316,7 @@ h1, h2, h3, h4 {
 .stButton>button { background-color: var(--surface) !important; color: var(--text) !important; border: 1.5px solid var(--border-light) !important; border-radius: 12px !important; font-weight: 600 !important; font-family: 'Inter', sans-serif !important; height: 48px !important; width: 100% !important; transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important; }
 .stButton>button:hover { background-color: var(--primary) !important; color: white !important; border-color: var(--primary) !important; transform: translateY(-1px); box-shadow: 0 6px 20px rgba(16, 185, 129, 0.3); }
 .stButton>button:disabled { opacity: 0.4; cursor: not-allowed; }
-.titulo-principal { font-size: 3rem; font-weight: 800; background: linear-gradient(135deg, #F1F5F9 0%, #94A3B8 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; line-height: 1.1; margin: 8px 0; }
+.titulo-principal { font-size: 3rem; font-weight: 800; background: linear-gradient(135deg, #F1F5F9 0%, #94A3B8 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; line-height: 1.1; margin: 8px 0; text-align: center; }
 .subtitulo { color: var(--text-dim); font-size: 1.05rem; }
 .destaque-lime { color: var(--primary); font-weight: 600; }
 .tag-nivel { display: inline-block; padding: 4px 12px; border-radius: 100px; font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
