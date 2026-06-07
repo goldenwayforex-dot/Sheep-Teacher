@@ -417,6 +417,8 @@ MODULO_ICONES = {
 MODULOS_AUDIO_PURO = {
     "Módulo 37: 🔊 Listening - Palavras do Dia a Dia",
     "Módulo 38: 🔊 Listening - Frases Bíblicas",
+    "🔊 Listening ES - Vocabulário Cotidiano",
+    "🔊 Listening ES - Frases Bíblicas",
 }
 
 def icone_modulo(titulo):
@@ -2256,6 +2258,316 @@ TRILHA_ES = [
         ("Fase 9", "Esperança", "Esperanza", "Esperansa", "Esperança", "Esperánza"),
         ("Fase 10", "Amém", "Amén", "Amem", "Amene", "Amín"),
     ]),
+    ("Español 8: SER - Pretérito", 2, [
+        ("Fase 1", "Eu fui aluno", "Yo fui alumno", "Yo era alumno", "Yo soy alumno", "Yo fue alumno"),
+        ("Fase 2", "Você foi meu amigo", "Tú fuiste mi amigo", "Tú fue mi amigo", "Tú eras mi amigo", "Tú eres mi amigo"),
+        ("Fase 3", "Ele foi pastor", "Él fue pastor", "Él era pastor", "Él fui pastor", "Él es pastor"),
+        ("Fase 4", "Nós fomos crianças", "Nosotros fuimos niños", "Nosotros éramos niños", "Nosotros fueron niños", "Nosotros somos niños"),
+        ("Fase 5", "Eles foram missionários", "Ellos fueron misioneros", "Ellos eran misioneros", "Ellos fui misioneros", "Ellos son misioneros"),
+        ("Fase 6", "Ela foi minha professora", "Ella fue mi profesora", "Ella era mi profesora", "Ella fui mi profesora", "Ella es mi profesora"),
+        ("Fase 7", "Eu era feliz", "Yo era feliz", "Yo fui feliz", "Yo soy feliz", "Yo estaba feliz"),
+        ("Fase 8", "Você era jovem", "Tú eras joven", "Tú fuiste joven", "Tú es joven", "Tú estabas joven"),
+    ]),
+    ("Español 9: ESTAR - Pretérito", 2, [
+        ("Fase 1", "Eu estava cansado", "Yo estaba cansado", "Yo estuve cansado", "Yo era cansado", "Yo fui cansado"),
+        ("Fase 2", "Ele estava na igreja", "Él estaba en la iglesia", "Él estuvo en la iglesia", "Él era en la iglesia", "Él fue en la iglesia"),
+        ("Fase 3", "Estávamos orando", "Estábamos orando", "Estuvimos orando", "Éramos orando", "Fuimos orando"),
+        ("Fase 4", "Eles estavam felizes", "Ellos estaban felices", "Ellos estuvieron felices", "Ellos eran felices", "Ellos fueron felices"),
+        ("Fase 5", "Eu estive aqui", "Yo estuve aquí", "Yo estaba aquí", "Yo era aquí", "Yo fui aquí"),
+        ("Fase 6", "Ela estava triste", "Ella estaba triste", "Ella estuvo triste", "Ella era triste", "Ella fue triste"),
+        ("Fase 7", "Você estava certo", "Tú estabas en lo cierto", "Tú estuviste cierto", "Tú eras cierto", "Tú fuiste cierto"),
+        ("Fase 8", "Nós estávamos em casa", "Nosotros estábamos en casa", "Nosotros estuvimos en casa", "Nosotros éramos en casa", "Nosotros fuimos en casa"),
+    ]),
+    ("Español 10: Dias da Semana", 1, [
+        ("Fase 1", "Segunda-feira", "Lunes", "Lunis", "Lunesa", "Lúnes"),
+        ("Fase 2", "Terça-feira", "Martes", "Martés", "Marte", "Martís"),
+        ("Fase 3", "Quarta-feira", "Miércoles", "Miercoles", "Mércoles", "Miercole"),
+        ("Fase 4", "Quinta-feira", "Jueves", "Juves", "Hueves", "Juevés"),
+        ("Fase 5", "Sexta-feira", "Viernes", "Viernès", "Viérnes", "Vienres"),
+        ("Fase 6", "Sábado", "Sábado", "Sabado", "Sabbat", "Sabado-"),
+        ("Fase 7", "Domingo", "Domingo", "Domingo-", "Dimingo", "Doming"),
+        ("Fase 8", "Hoje", "Hoy", "Hoie", "Hou", "Hoí"),
+    ]),
+    ("Español 11: Meses do Ano", 1, [
+        ("Fase 1", "Janeiro", "Enero", "Janeiro", "Énero", "Enéro"),
+        ("Fase 2", "Fevereiro", "Febrero", "Febreiro", "Fevrero", "Febrário"),
+        ("Fase 3", "Março", "Marzo", "Março", "Marsso", "Marzso"),
+        ("Fase 4", "Abril", "Abril", "Avril", "Abríl", "Abrile"),
+        ("Fase 5", "Maio", "Mayo", "Maio", "Máyo", "Mayio"),
+        ("Fase 6", "Junho", "Junio", "Junho", "Júnio", "Juno"),
+        ("Fase 7", "Julho", "Julio", "Julho", "Júlio", "Julho-"),
+        ("Fase 8", "Dezembro", "Diciembre", "Decembre", "Diciembré", "Dezembre"),
+    ]),
+    ("Español 12: Pronomes Pessoais", 1, [
+        ("Fase 1", "Eu", "Yo", "Yó", "Yu", "Eu"),
+        ("Fase 2", "Tu/Você", "Tú", "Tu", "Vos", "Ti"),
+        ("Fase 3", "Ele", "Él", "El", "Él-", "Elí"),
+        ("Fase 4", "Ela", "Ella", "Ela", "Ellha", "Élla"),
+        ("Fase 5", "Nós", "Nosotros", "Nos", "Nosotras", "Nuestros"),
+        ("Fase 6", "Vocês", "Ustedes", "Vosotros", "Ústedes", "Vous"),
+        ("Fase 7", "Eles", "Ellos", "Elos", "Élles", "Eles"),
+        ("Fase 8", "Elas", "Ellas", "Elas", "Élas", "Ellos"),
+    ]),
+    ("Español 13: Comida e Bebida", 1, [
+        ("Fase 1", "Pão", "Pan", "Pão", "Panes", "Pane"),
+        ("Fase 2", "Água", "Agua", "Auga", "Água", "Awa"),
+        ("Fase 3", "Café", "Café", "Cofe", "Café-", "Cofé"),
+        ("Fase 4", "Leite", "Leche", "Lecha", "Lèche", "Leite"),
+        ("Fase 5", "Arroz", "Arroz", "Arros", "Arrós", "Aroz"),
+        ("Fase 6", "Carne", "Carne", "Carna", "Carnes", "Carné"),
+        ("Fase 7", "Fruta", "Fruta", "Frutta", "Frúta", "Fruita"),
+        ("Fase 8", "Vinho", "Vino", "Viño", "Vinho", "Vín"),
+    ]),
+    ("Español 14: Partes do Corpo", 1, [
+        ("Fase 1", "Cabeça", "Cabeza", "Cabesa", "Cabéza", "Capeza"),
+        ("Fase 2", "Olhos", "Ojos", "Oios", "Olhos", "Óhos"),
+        ("Fase 3", "Boca", "Boca", "Buca", "Bocca", "Bóca"),
+        ("Fase 4", "Mão", "Mano", "Mau", "Mãno", "Manno"),
+        ("Fase 5", "Pé", "Pie", "Pé", "Pies", "Pii"),
+        ("Fase 6", "Coração", "Corazón", "Corazon", "Coraçón", "Corizon"),
+        ("Fase 7", "Braço", "Brazo", "Braço", "Brasso", "Braco"),
+        ("Fase 8", "Cabelo", "Pelo", "Cabello", "Cabelo", "Pello"),
+    ]),
+    ("Español 15: Tempo e Clima", 1, [
+        ("Fase 1", "Está fazendo sol", "Hace sol", "Está sol", "Es sol", "Tiene sol"),
+        ("Fase 2", "Está chovendo", "Está lloviendo", "Está llove", "Es lloviendo", "Hay lluvia"),
+        ("Fase 3", "Está frio", "Hace frío", "Está frío", "Es frío", "Tiene frío"),
+        ("Fase 4", "Está quente", "Hace calor", "Está calor", "Es calor", "Tiene calor"),
+        ("Fase 5", "Está nevando", "Está nevando", "Está nieve", "Es nieve", "Hace nieve"),
+        ("Fase 6", "Está nublado", "Está nublado", "Es nublado", "Hace nublado", "Tiene nubes"),
+        ("Fase 7", "Bom tempo hoje", "Buen tiempo hoy", "Buen clima hoy", "Bueno tiempo hoy", "Bonito tiempo hoy"),
+        ("Fase 8", "Trovões e relâmpagos", "Truenos y relámpagos", "Trueno y relámpago", "Trovones y relámpagos", "Tronos y rayos"),
+    ]),
+    ("Español 16: Perguntas (Wh-)", 1, [
+        ("Fase 1", "O que é isso?", "¿Qué es eso?", "¿Que es eso?", "¿Cuál es eso?", "¿Cómo es eso?"),
+        ("Fase 2", "Quem é você?", "¿Quién eres?", "¿Quien eres?", "¿Qué eres?", "¿Cómo eres?"),
+        ("Fase 3", "Quando você chega?", "¿Cuándo llegas?", "¿Cuando llegas?", "¿Dónde llegas?", "¿Qué llegas?"),
+        ("Fase 4", "Onde está a igreja?", "¿Dónde está la iglesia?", "¿Donde está la iglesia?", "¿Cuándo está la iglesia?", "¿Cómo está la iglesia?"),
+        ("Fase 5", "Por que você ora?", "¿Por qué oras?", "¿Porqué oras?", "¿Para qué oras?", "¿Cómo oras?"),
+        ("Fase 6", "Como você está?", "¿Cómo estás?", "¿Como estás?", "¿Qué estás?", "¿Cuándo estás?"),
+        ("Fase 7", "Quanto custa?", "¿Cuánto cuesta?", "¿Cuanto cuesta?", "¿Cómo cuesta?", "¿Cuál cuesta?"),
+        ("Fase 8", "Qual é seu nome?", "¿Cuál es tu nombre?", "¿Cómo se llama?", "¿Qué es tu nombre?", "¿Quién es tu nombre?"),
+    ]),
+    ("Español 17: Verbos do Dia-a-Dia", 2, [
+        ("Fase 1", "Eu como pão", "Yo como pan", "Yo coma pan", "Yo comer pan", "Yo come pan"),
+        ("Fase 2", "Você bebe água", "Tú bebes agua", "Tú bebe agua", "Tú beber agua", "Tú beba agua"),
+        ("Fase 3", "Ele dorme bem", "Él duerme bien", "Él dorme bien", "Él dormir bien", "Él duerma bien"),
+        ("Fase 4", "Nós trabalhamos juntos", "Nosotros trabajamos juntos", "Nosotros trabaja juntos", "Nosotros trabajar juntos", "Nosotros trabaje juntos"),
+        ("Fase 5", "Eu falo espanhol", "Yo hablo español", "Yo habla español", "Yo hablar español", "Yo hable español"),
+        ("Fase 6", "Ela canta na igreja", "Ella canta en la iglesia", "Ella cantar en la iglesia", "Ella cante en la iglesia", "Ella canto en la iglesia"),
+        ("Fase 7", "Eles caminham juntos", "Ellos caminan juntos", "Ellos caminar juntos", "Ellos camina juntos", "Ellos caminen juntos"),
+        ("Fase 8", "Eu leio a Bíblia", "Yo leo la Biblia", "Yo lee la Biblia", "Yo leer la Biblia", "Yo lea la Biblia"),
+    ]),
+    ("Español 18: Frases de Oração", 2, [
+        ("Fase 1", "Senhor, ouve-me", "Señor, escúchame", "Señor, oíme", "Señor, escucha-me", "Señor, oyeme"),
+        ("Fase 2", "Pai, perdoa-nos", "Padre, perdónanos", "Padre, perdone nosotros", "Padre, perdona nos", "Padre, perdonarnos"),
+        ("Fase 3", "Em nome de Jesus", "En el nombre de Jesús", "En nombre de Jesús", "En el nome de Jesús", "En la nombre de Jesús"),
+        ("Fase 4", "Obrigado, Senhor", "Gracias, Señor", "Gracias por Señor", "Grácias, Señor", "Gracias al Señor"),
+        ("Fase 5", "Glória a Deus", "Gloria a Dios", "Gloria de Dios", "Glória a Dios", "Gloria para Dios"),
+        ("Fase 6", "Abençoa minha família", "Bendice mi familia", "Bendiga mi familia", "Bendice por mi familia", "Bendiz mi familia"),
+        ("Fase 7", "Tu és santo", "Tú eres santo", "Tú es santo", "Tú estás santo", "Tú son santo"),
+        ("Fase 8", "Confio em Ti", "Confío en Ti", "Confío a Ti", "Confiar en Ti", "Confio Ti"),
+    ]),
+    ("Español 19: Versículos Bíblicos", 2, [
+        ("Fase 1", "O Senhor é meu pastor", "El Señor es mi pastor", "El Señor está mi pastor", "El Señor son mi pastor", "El Señor era mi pastor"),
+        ("Fase 2", "Deus é amor", "Dios es amor", "Dios está amor", "Dios son amor", "Dios fue amor"),
+        ("Fase 3", "Crê no Senhor", "Cree en el Señor", "Cre al Señor", "Crer en el Señor", "Cree por el Señor"),
+        ("Fase 4", "A fé move montanhas", "La fe mueve montañas", "La fe move montañas", "La fé mueve montañas", "La fe mover montañas"),
+        ("Fase 5", "Tudo posso em Cristo", "Todo lo puedo en Cristo", "Todo puedo en Cristo", "Todo lo poder en Cristo", "Todo posso en Cristo"),
+        ("Fase 6", "Amai uns aos outros", "Amaos los unos a los otros", "Amar unos a otros", "Aman los unos a los otros", "Amad unos al otros"),
+        ("Fase 7", "Deus está conosco", "Dios está con nosotros", "Dios es con nosotros", "Dios está nuestros", "Dios son con nosotros"),
+        ("Fase 8", "A paz esteja contigo", "La paz sea contigo", "La paz esté contigo", "La paz está contigo", "La paz sé contigo"),
+    ]),
+    ("Español 20: Adoração e Louvor", 2, [
+        ("Fase 1", "Aleluia", "Aleluya", "Alleluya", "Halleluya", "Aleluja"),
+        ("Fase 2", "Adoramos a Ti", "Te adoramos", "Adoramos a Ti", "Te adorar", "Adoramos Ti"),
+        ("Fase 3", "Cantai ao Senhor", "Cantad al Señor", "Canta al Señor", "Cantar al Señor", "Cantamos al Señor"),
+        ("Fase 4", "Glória ao Rei", "Gloria al Rey", "Glória al Rey", "Gloria del Rey", "Gloria por el Rey"),
+        ("Fase 5", "Levantai vossas mãos", "Levantad vuestras manos", "Levanta vuestras manos", "Levantar vuestras manos", "Levantáis las manos"),
+        ("Fase 6", "Santo é o Senhor", "Santo es el Señor", "Santo está el Señor", "Santo son el Señor", "Santo era el Señor"),
+        ("Fase 7", "Digno é o Cordeiro", "Digno es el Cordero", "Digno está el Cordero", "Digno son el Cordero", "Digno era el Cordero"),
+        ("Fase 8", "Bendito seja Deus", "Bendito sea Dios", "Bendito es Dios", "Bendice Dios", "Bendecid Dios"),
+    ]),
+    ("Español 21: Preposições", 2, [
+        ("Fase 1", "Estou na igreja", "Estoy en la iglesia", "Estoy a la iglesia", "Estoy de la iglesia", "Estoy por la iglesia"),
+        ("Fase 2", "O livro está sobre a mesa", "El libro está sobre la mesa", "El libro está en la mesa", "El libro está por la mesa", "El libro está de la mesa"),
+        ("Fase 3", "Vou para casa", "Voy a casa", "Voy en casa", "Voy de casa", "Voy por casa"),
+        ("Fase 4", "Saí de casa", "Salí de casa", "Salí a casa", "Salí en casa", "Salí por casa"),
+        ("Fase 5", "Eu oro por você", "Oro por ti", "Oro a ti", "Oro en ti", "Oro de ti"),
+        ("Fase 6", "Com minha família", "Con mi familia", "A mi familia", "Por mi familia", "De mi familia"),
+        ("Fase 7", "Sem você", "Sin ti", "Sen ti", "Si ti", "Sín ti"),
+        ("Fase 8", "Antes da aula", "Antes de la clase", "Antes a la clase", "Antes por la clase", "Antes en la clase"),
+    ]),
+    ("Español 22: Frases Bíblicas Comuns", 2, [
+        ("Fase 1", "Que o Senhor te abençoe", "Que el Señor te bendiga", "Que el Señor te bendice", "Que el Señor te bendecir", "Que el Señor bendiga te"),
+        ("Fase 2", "Tenha fé", "Ten fe", "Tener fe", "Tenga fe", "Tienes fe"),
+        ("Fase 3", "Deus te ama", "Dios te ama", "Dios te amar", "Dios ama a ti", "Dios te amor"),
+        ("Fase 4", "Confia em Deus", "Confía en Dios", "Confía a Dios", "Confiar en Dios", "Confías en Dios"),
+        ("Fase 5", "Cristo vive", "Cristo vive", "Cristo está vivo", "Cristo vivo", "Cristo es vivo"),
+        ("Fase 6", "Não tenha medo", "No tengas miedo", "No tiene miedo", "No tener miedo", "No tienes miedo"),
+        ("Fase 7", "Eu sou o caminho", "Yo soy el camino", "Yo estoy el camino", "Yo es el camino", "Yo fui el camino"),
+        ("Fase 8", "A verdade vos libertará", "La verdad os hará libres", "La verdad os hace libres", "La verdad libre vos", "La verdad ustedes libres"),
+    ]),
+    ("Español 23: Presente Simple", 2, [
+        ("Fase 1", "Eu estudo espanhol", "Yo estudio español", "Yo estudia español", "Yo estudiar español", "Yo estudie español"),
+        ("Fase 2", "Você vive em Marília", "Tú vives en Marília", "Tú vive en Marília", "Tú vivir en Marília", "Tú viva en Marília"),
+        ("Fase 3", "Ele escreve bem", "Él escribe bien", "Él escribir bien", "Él escriba bien", "Él escrito bien"),
+        ("Fase 4", "Nós aprendemos juntos", "Nosotros aprendemos juntos", "Nosotros aprende juntos", "Nosotros aprender juntos", "Nosotros aprende juntos"),
+        ("Fase 5", "Eles ensinam crianças", "Ellos enseñan niños", "Ellos enseña niños", "Ellos enseñar niños", "Ellos enseño niños"),
+        ("Fase 6", "Eu sempre oro", "Yo siempre oro", "Yo siempre ora", "Yo siempre orar", "Yo siempre orado"),
+        ("Fase 7", "Ela ajuda os pobres", "Ella ayuda a los pobres", "Ella ayudar a los pobres", "Ella ayude a los pobres", "Ella ayudo a los pobres"),
+        ("Fase 8", "Você lê a Bíblia", "Tú lees la Biblia", "Tú lee la Biblia", "Tú leer la Biblia", "Tú leas la Biblia"),
+    ]),
+    ("Español 24: Futuro 'Ir a + verbo'", 2, [
+        ("Fase 1", "Vou orar agora", "Voy a orar ahora", "Voy orar ahora", "Voy a oro ahora", "Vou a orar ahora"),
+        ("Fase 2", "Você vai estudar amanhã", "Tú vas a estudiar mañana", "Tú vas estudiar mañana", "Tú va a estudiar mañana", "Tú vai estudiar mañana"),
+        ("Fase 3", "Ele vai chegar logo", "Él va a llegar pronto", "Él va llegar pronto", "Él vas a llegar pronto", "Él vai llegar pronto"),
+        ("Fase 4", "Nós vamos cantar", "Vamos a cantar", "Vamos cantar", "Vamos a cantamos", "Vamos a cantando"),
+        ("Fase 5", "Eles vão viajar", "Ellos van a viajar", "Ellos van viajar", "Ellos va a viajar", "Ellos vai viajar"),
+        ("Fase 6", "Ela vai me ajudar", "Ella va a ayudarme", "Ella va ayudarme", "Ella vas a ayudarme", "Ella vai ayudarme"),
+        ("Fase 7", "Eu vou pra escola", "Voy a la escuela", "Voy en la escuela", "Voy de la escuela", "Voy por la escuela"),
+        ("Fase 8", "Vamos pra igreja", "Vamos a la iglesia", "Vamos en la iglesia", "Vamos de la iglesia", "Vamos por la iglesia"),
+    ]),
+    ("Español 25: Modais (poder/deber)", 3, [
+        ("Fase 1", "Eu posso fazer isso", "Yo puedo hacer eso", "Yo poder hacer eso", "Yo puedo haz eso", "Yo pude hacer eso"),
+        ("Fase 2", "Você deve orar", "Tú debes orar", "Tú deber orar", "Tú debe orar", "Tú debas orar"),
+        ("Fase 3", "Ele pode vir", "Él puede venir", "Él poder venir", "Él pueda venir", "Él podía venir"),
+        ("Fase 4", "Devemos amar a Deus", "Debemos amar a Dios", "Deber amar a Dios", "Debamos amar a Dios", "Debíamos amar a Dios"),
+        ("Fase 5", "Eu não posso ir", "No puedo ir", "No poder ir", "No pueda ir", "No pude ir"),
+        ("Fase 6", "Você deve estudar mais", "Debes estudiar más", "Deber estudiar más", "Debe estudiar más", "Debas estudiar más"),
+        ("Fase 7", "Eles podem entrar", "Ellos pueden entrar", "Ellos poder entrar", "Ellos puedan entrar", "Ellos podían entrar"),
+        ("Fase 8", "Você precisa descansar", "Necesitas descansar", "Necesita descansar", "Necesitar descansar", "Necesites descansar"),
+    ]),
+    ("Español 26: Pretérito (regulares)", 3, [
+        ("Fase 1", "Eu falei com ela", "Yo hablé con ella", "Yo hablo con ella", "Yo hablar con ella", "Yo hablaba con ella"),
+        ("Fase 2", "Você comeu pão", "Tú comiste pan", "Tú come pan", "Tú comió pan", "Tú comías pan"),
+        ("Fase 3", "Ele orou pela família", "Él oró por la familia", "Él ora por la familia", "Él orar por la familia", "Él oraba por la familia"),
+        ("Fase 4", "Nós cantamos juntos", "Cantamos juntos", "Cantar juntos", "Cantábamos juntos", "Canté juntos"),
+        ("Fase 5", "Eu trabalhei ontem", "Trabajé ayer", "Trabajo ayer", "Trabajar ayer", "Trabajaba ayer"),
+        ("Fase 6", "Eles viveram em paz", "Ellos vivieron en paz", "Ellos vive en paz", "Ellos vivir en paz", "Ellos vivían en paz"),
+        ("Fase 7", "Ela estudou muito", "Ella estudió mucho", "Ella estudia mucho", "Ella estudiar mucho", "Ella estudiaba mucho"),
+        ("Fase 8", "Você dormiu bem", "Tú dormiste bien", "Tú duerme bien", "Tú dormir bien", "Tú dormías bien"),
+    ]),
+    ("Español 27: Pretérito (irregulares)", 3, [
+        ("Fase 1", "Eu fiz uma oração", "Yo hice una oración", "Yo hizo una oración", "Yo haga una oración", "Yo hago una oración"),
+        ("Fase 2", "Você teve fé", "Tú tuviste fe", "Tú tienes fe", "Tú tener fe", "Tú tenías fe"),
+        ("Fase 3", "Ele veio à igreja", "Él vino a la iglesia", "Él viene a la iglesia", "Él venir a la iglesia", "Él venía a la iglesia"),
+        ("Fase 4", "Nós dissemos amém", "Dijimos amén", "Decimos amén", "Decir amén", "Dijó amén"),
+        ("Fase 5", "Eu vi Jesus em sonho", "Vi a Jesús en sueño", "Veo a Jesús en sueño", "Ver a Jesús en sueño", "Veía a Jesús en sueño"),
+        ("Fase 6", "Eles foram embora", "Ellos se fueron", "Ellos se van", "Ellos ir", "Ellos se iban"),
+        ("Fase 7", "Você quis ajudar", "Tú quisiste ayudar", "Tú quieres ayudar", "Tú querer ayudar", "Tú querías ayudar"),
+        ("Fase 8", "Ele soube a verdade", "Él supo la verdad", "Él sabe la verdad", "Él saber la verdad", "Él sabía la verdad"),
+    ]),
+    ("Español 28: Conjunções", 2, [
+        ("Fase 1", "Eu e você", "Yo y tú", "Yo o tú", "Yo pero tú", "Yo si tú"),
+        ("Fase 2", "Café ou chá", "Café o té", "Café y té", "Café pero té", "Café si té"),
+        ("Fase 3", "Quero, mas não posso", "Quiero, pero no puedo", "Quiero, y no puedo", "Quiero, o no puedo", "Quiero, si no puedo"),
+        ("Fase 4", "Se você ora, Deus ouve", "Si tú oras, Dios oye", "Y tú oras, Dios oye", "Pero tú oras, Dios oye", "O tú oras, Dios oye"),
+        ("Fase 5", "Porque eu creio", "Porque yo creo", "Por que yo creo", "Para que yo creo", "Pues yo creo"),
+        ("Fase 6", "Então oramos", "Entonces oramos", "Pero oramos", "Si oramos", "O oramos"),
+        ("Fase 7", "Pai e filho", "Padre e hijo", "Padre y hijo", "Padre o hijo", "Padre pero hijo"),
+        ("Fase 8", "Sete ou oito", "Siete u ocho", "Siete o ocho", "Siete y ocho", "Siete pero ocho"),
+    ]),
+    ("Español 29: Animais", 1, [
+        ("Fase 1", "Cachorro", "Perro", "Perrito", "Cão", "Pero"),
+        ("Fase 2", "Gato", "Gato", "Gata", "Mishi", "Gatito"),
+        ("Fase 3", "Pássaro", "Pájaro", "Pajaro", "Pájara", "Pájáro"),
+        ("Fase 4", "Cavalo", "Caballo", "Cavalo", "Caballero", "Cabello"),
+        ("Fase 5", "Peixe", "Pez", "Peces", "Pezo", "Pesca"),
+        ("Fase 6", "Ovelha", "Oveja", "Cordera", "Ovelha", "Ovéja"),
+        ("Fase 7", "Cordeiro", "Cordero", "Corderito", "Cordeira", "Cordeiro"),
+        ("Fase 8", "Leão", "León", "Leon", "Leão", "Léon"),
+    ]),
+    ("Español 30: Roupas", 1, [
+        ("Fase 1", "Camisa", "Camisa", "Camiseta", "Chemise", "Camiza"),
+        ("Fase 2", "Calça", "Pantalón", "Pantalon", "Calça", "Pantalones"),
+        ("Fase 3", "Sapato", "Zapato", "Sapato", "Záapato", "Zapatos"),
+        ("Fase 4", "Chapéu", "Sombrero", "Chapéu", "Sombra", "Sombrer"),
+        ("Fase 5", "Vestido", "Vestido", "Vestida", "Vestire", "Vestidos"),
+        ("Fase 6", "Casaco", "Abrigo", "Casaco", "Abriguito", "Abrego"),
+        ("Fase 7", "Meias", "Calcetines", "Mediases", "Meias", "Calcetin"),
+        ("Fase 8", "Cinto", "Cinturón", "Cinta", "Cinto", "Cinturon"),
+    ]),
+    ("Español 31: Em Casa", 1, [
+        ("Fase 1", "Casa", "Casa", "Caso", "Casas", "Casita"),
+        ("Fase 2", "Quarto", "Habitación", "Cuarto", "Habitacion", "Quartos"),
+        ("Fase 3", "Cozinha", "Cocina", "Cosina", "Cozinha", "Cocine"),
+        ("Fase 4", "Sala", "Sala", "Salón", "Sala-", "Sale"),
+        ("Fase 5", "Banheiro", "Baño", "Banheiro", "Bano", "Baños"),
+        ("Fase 6", "Mesa", "Mesa", "Mesas", "Meza", "Méssa"),
+        ("Fase 7", "Cadeira", "Silla", "Cadeira", "Sillas", "Cadera"),
+        ("Fase 8", "Cama", "Cama", "Camas", "Caama", "Cane"),
+    ]),
+    ("Español 32: Profissões", 2, [
+        ("Fase 1", "Professor", "Profesor", "Profesora", "Profesór", "Maestro"),
+        ("Fase 2", "Médico", "Médico", "Doctora", "Medico", "Médica"),
+        ("Fase 3", "Pastor", "Pastor", "Pastora", "Pastur", "Pastores"),
+        ("Fase 4", "Estudante", "Estudiante", "Estudante", "Estudientes", "Estudiar"),
+        ("Fase 5", "Engenheiro", "Ingeniero", "Engenheiro", "Ingeniera", "Ingenier"),
+        ("Fase 6", "Enfermeira", "Enfermera", "Enfermero", "Enfermería", "Enfermería"),
+        ("Fase 7", "Cozinheiro", "Cocinero", "Cozinheiro", "Cocinera", "Cocine"),
+        ("Fase 8", "Advogado", "Abogado", "Abogada", "Avocado", "Abogato"),
+    ]),
+    ("Español 33: Lugares", 1, [
+        ("Fase 1", "Escola", "Escuela", "Escola", "Escuelita", "Escuelo"),
+        ("Fase 2", "Hospital", "Hospital", "Hospitalito", "Hospitalo", "Hospitale"),
+        ("Fase 3", "Mercado", "Mercado", "Mercada", "Mercados", "Mercante"),
+        ("Fase 4", "Praia", "Playa", "Praia", "Playas", "Plaia"),
+        ("Fase 5", "Parque", "Parque", "Parques", "Park", "Parc"),
+        ("Fase 6", "Rua", "Calle", "Rua", "Callecita", "Calles"),
+        ("Fase 7", "Cidade", "Ciudad", "Cidade", "Ciudades", "Ciudadana"),
+        ("Fase 8", "Banco", "Banco", "Bancos", "Bance", "Bank"),
+    ]),
+    ("Español 34: Sentimentos", 2, [
+        ("Fase 1", "Estou feliz", "Estoy feliz", "Soy feliz", "Estoy feliza", "Estoy felice"),
+        ("Fase 2", "Você está triste", "Tú estás triste", "Tú eres triste", "Tú está triste", "Tú estás trista"),
+        ("Fase 3", "Ele está com medo", "Él tiene miedo", "Él está con miedo", "Él es con miedo", "Él tener miedo"),
+        ("Fase 4", "Estamos cansados", "Estamos cansados", "Somos cansados", "Estoy cansados", "Estamos cansadas"),
+        ("Fase 5", "Estou agradecido", "Estoy agradecido", "Soy agradecido", "Estoy gracias", "Estoy graciado"),
+        ("Fase 6", "Você está orgulhoso", "Estás orgulloso", "Eres orgulloso", "Está orgulloso", "Estás orgulhoso"),
+        ("Fase 7", "Estou em paz", "Estoy en paz", "Soy en paz", "Tengo paz", "Estoy paz"),
+        ("Fase 8", "Sinto amor", "Siento amor", "Sentir amor", "Siente amor", "Sento amor"),
+    ]),
+    ("Español 35: Personagens Bíblicos", 1, [
+        ("Fase 1", "Maria", "María", "Maria", "Marie", "Maris"),
+        ("Fase 2", "José", "José", "Josef", "Joseh", "Hose"),
+        ("Fase 3", "Moisés", "Moisés", "Mosés", "Moiseis", "Moisses"),
+        ("Fase 4", "Davi", "David", "Davi", "Davide", "Davídi"),
+        ("Fase 5", "Abraão", "Abraham", "Abrão", "Abrahan", "Abrahán"),
+        ("Fase 6", "Pedro", "Pedro", "Pedrito", "Petros", "Pedo"),
+        ("Fase 7", "Paulo", "Pablo", "Paulo", "Paulé", "Paolino"),
+        ("Fase 8", "João Batista", "Juan Bautista", "Juan Batista", "Joâo Bautista", "Yuan Bautista"),
+    ]),
+    ("Español 36: Livros da Bíblia", 1, [
+        ("Fase 1", "Gênesis", "Génesis", "Genesis", "Génesi", "Genésis"),
+        ("Fase 2", "Êxodo", "Éxodo", "Exodo", "Éxod", "Éxodos"),
+        ("Fase 3", "Salmos", "Salmos", "Salmo", "Salmas", "Salme"),
+        ("Fase 4", "Mateus", "Mateo", "Mateus", "Mateí", "Mateos"),
+        ("Fase 5", "Marcos", "Marcos", "Marco", "Marquez", "Marcus"),
+        ("Fase 6", "Lucas", "Lucas", "Lucos", "Luca", "Lucase"),
+        ("Fase 7", "João", "Juan", "Joan", "João", "Yuan"),
+        ("Fase 8", "Apocalipse", "Apocalipsis", "Apocalipse", "Apocaliptos", "Apocalipsi"),
+    ]),
+    ("🔊 Listening ES - Vocabulário Cotidiano", 2, [
+        ("Fase 1", "Ouça e escolha", "Hola", "Ola", "Hala", "Hoia"),
+        ("Fase 2", "Ouça e escolha", "Buenos días", "Buenas días", "Buen día", "Buena día"),
+        ("Fase 3", "Ouça e escolha", "Gracias", "Grácias", "Grasias", "Gratias"),
+        ("Fase 4", "Ouça e escolha", "Por favor", "Por favoro", "Para favor", "Pro favor"),
+        ("Fase 5", "Ouça e escolha", "Familia", "Familía", "Famelia", "Familya"),
+        ("Fase 6", "Ouça e escolha", "Iglesia", "Eglesia", "Iglecia", "Iglesya"),
+        ("Fase 7", "Ouça e escolha", "Hermano", "Ermano", "Hermana", "Hernamo"),
+        ("Fase 8", "Ouça e escolha", "Amor", "Amour", "Amér", "Amore"),
+    ]),
+    ("🔊 Listening ES - Frases Bíblicas", 2, [
+        ("Fase 1", "Ouça e escolha", "Amén", "Amen", "Amín", "Amene"),
+        ("Fase 2", "Ouça e escolha", "Aleluya", "Aleluja", "Halleluya", "Aleluia"),
+        ("Fase 3", "Ouça e escolha", "Dios es amor", "Dios es amor!", "Dios amor", "Dios y amor"),
+        ("Fase 4", "Ouça e escolha", "Cristo vive", "Cristo vivo", "Christ vive", "Cristo viven"),
+        ("Fase 5", "Ouça e escolha", "Bendito sea Dios", "Bendito es Dios", "Bendice Dios", "Bendecid Dios"),
+        ("Fase 6", "Ouça e escolha", "Ten fe", "Ten fé", "Tener fe", "Tiene fe"),
+        ("Fase 7", "Ouça e escolha", "Padre nuestro", "Padre nostro", "Padre nuestro!", "Padrenuestro"),
+        ("Fase 8", "Ouça e escolha", "La paz sea contigo", "La paz contigo", "Paz contigo", "Paz sea contigo"),
+    ]),
 ]
 
 # Explicações pedagógicas - só onde realmente ajuda (gramática)
@@ -3670,6 +3982,111 @@ elif st.session_state.tela == "admin":
 
     with aba_personalizar:
         st.markdown("### 🎨 Personalização visual")
+
+        # === DIAGNÓSTICO DE IDIOMAS / TRILHAS ===
+        with st.expander("🌐 Diagnóstico de idiomas e trilhas (debug)", expanded=False):
+            _garantir_colunas_idioma()
+            # Contagens
+            try:
+                count_total = consultar_um("SELECT COUNT(*) FROM modulos")[0]
+                count_en = consultar_um("SELECT COUNT(*) FROM modulos WHERE COALESCE(idioma, 'en') = 'en'")[0]
+                count_es = consultar_um("SELECT COUNT(*) FROM modulos WHERE idioma = 'es'")[0]
+                count_null = consultar_um("SELECT COUNT(*) FROM modulos WHERE idioma IS NULL")[0]
+            except Exception as e:
+                st.error(f"Erro consultando módulos: {e}")
+                count_total = count_en = count_es = count_null = 0
+
+            c1, c2, c3, c4 = st.columns(4)
+            with c1: st.metric("Total módulos", count_total)
+            with c2: st.metric("🇺🇸 Inglês", count_en)
+            with c3: st.metric("🇪🇸 Espanhol", count_es)
+            with c4: st.metric("Sem idioma (NULL)", count_null)
+
+            # Lista os módulos espanhóis que existem
+            try:
+                mods_es = consultar("SELECT id, titulo FROM modulos WHERE idioma = 'es' ORDER BY id")
+                if mods_es:
+                    st.markdown("**Módulos em espanhol no banco:**")
+                    for mid, titulo in mods_es:
+                        st.text(f"  • #{mid}: {titulo}")
+                else:
+                    st.warning("⚠️ Nenhum módulo em espanhol encontrado no banco!")
+            except Exception as e:
+                st.error(f"Erro: {e}")
+
+            st.markdown("---")
+            st.caption("Se os módulos em espanhol não aparecem na home, clique no botão abaixo pra forçar a criação. "
+                       "É seguro — só adiciona módulos que ainda não existem.")
+
+            if st.button("🔄 Recriar trilhas espanholas (forçar)", type="primary", use_container_width=True):
+                modulos_processados = 0
+                licoes_criadas = 0
+                erros = []
+                try:
+                    _garantir_colunas_idioma()
+                    for titulo, nivel, licoes in TRILHA_ES:
+                        try:
+                            eh_audio_puro = 1 if titulo in MODULOS_AUDIO_PURO else 0
+                            existe = consultar_um("SELECT id FROM modulos WHERE titulo = ?", (titulo,))
+                            if existe:
+                                mid = existe[0]
+                                # atualiza nivel/idioma/audio_puro
+                                executar("UPDATE modulos SET nivel = ?, idioma = ?, audio_puro = ? WHERE id = ?",
+                                         (nivel, "es", eh_audio_puro, mid))
+                            else:
+                                mid = executar(
+                                    "INSERT INTO modulos (titulo, nivel, audio_puro, idioma) VALUES (?, ?, ?, ?)",
+                                    (titulo, nivel, eh_audio_puro, "es")
+                                )
+                            if not mid:
+                                erros.append(f"Não consegui criar/encontrar módulo '{titulo}'")
+                                continue
+                            modulos_processados += 1
+                            # Agora cria/atualiza as lições
+                            for l in licoes:
+                                try:
+                                    # Verifica se já tem essa lição (por titulo_botao)
+                                    licao_existe = consultar_um(
+                                        "SELECT id FROM licoes WHERE modulo_id = ? AND titulo_botao = ?",
+                                        (mid, l[0])
+                                    )
+                                    if licao_existe:
+                                        # Atualiza só se diferente
+                                        executar(
+                                            "UPDATE licoes SET pergunta = ?, opcao_1 = ?, opcao_2 = ?, opcao_3 = ?, opcao_4 = ?, resposta_correta = ? WHERE id = ?",
+                                            (l[1], l[2], l[3], l[4], l[5], l[2], licao_existe[0])
+                                        )
+                                    else:
+                                        executar(
+                                            "INSERT INTO licoes (modulo_id, titulo_botao, pergunta, opcao_1, opcao_2, opcao_3, opcao_4, resposta_correta, explicacao) VALUES (?,?,?,?,?,?,?,?,?)",
+                                            (mid, l[0], l[1], l[2], l[3], l[4], l[5], l[2], "")
+                                        )
+                                        licoes_criadas += 1
+                                except Exception as e:
+                                    erros.append(f"Lição '{titulo}/{l[0]}': {e}")
+                        except Exception as e:
+                            erros.append(f"Módulo '{titulo}': {e}")
+                except Exception as e:
+                    st.error(f"Erro geral: {e}")
+
+                # Limpa caches pra próxima leitura ler dados frescos
+                try:
+                    consultar_cached.clear()
+                    listar_modulos_cached.clear()
+                    listar_licoes_modulo_cached.clear()
+                except Exception:
+                    pass
+
+                st.success(f"✅ {modulos_processados} módulos processados, {licoes_criadas} lições novas criadas!")
+                st.balloons()
+                if erros:
+                    st.warning(f"⚠️ {len(erros)} erros (clique pra ver):")
+                    with st.expander("Erros"):
+                        for e in erros:
+                            st.text(e)
+                st.rerun()
+
+        st.markdown("---")
         st.caption("Configure o logo e textos do seu app. Tudo é salvo no banco, então persiste entre reinicializações.")
 
         # === LOGO ===
