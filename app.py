@@ -660,32 +660,92 @@ class TursoConnection:
 
 _TURSO_ULTIMO_ERRO = None
 _INIT_ERROS = []  # lista de erros não-fatais durante iniciar_banco
+_SNAPSHOT_RESTAURADO = False  # True quando snapshot do Turso já foi puxado pro local
+_TURSO_WRITE_ERROS = []  # writes que falharam no Turso (debug)
 
 def conectar():
-    """Conecta ao banco. Se Turso configurado, usa TursoConnection (HTTP).
-    Senão, usa SQLite local (efêmero no Streamlit Cloud)."""
-    global _TURSO_ULTIMO_ERRO
-    turso_url = _get_secret_or_env("TURSO_DATABASE_URL")
-    turso_token = _get_secret_or_env("TURSO_AUTH_TOKEN")
-    if turso_url and turso_token:
-        try:
-            return TursoConnection(turso_url, turso_token)
-        except Exception as e:
-            _TURSO_ULTIMO_ERRO = f"{type(e).__name__}: {str(e)[:200]}"
+    """Sempre retorna conexão local SQLite (rápido). Sincronização com Turso
+    acontece via _sync_write_para_turso() chamado pelo executar()."""
     return sqlite3.connect(DB_PATH)
 
 def backend_banco():
-    """Retorna 'turso' se o backend ativo é Turso, ou 'sqlite' caso contrário."""
+    """Retorna 'turso' se Turso está configurado (e não houve falha), senão 'sqlite'."""
     if _get_secret_or_env("TURSO_DATABASE_URL") and _get_secret_or_env("TURSO_AUTH_TOKEN") and _TURSO_ULTIMO_ERRO is None:
         return "turso"
     return "sqlite"
 
+def _conectar_turso():
+    """Cria uma TursoConnection pra usar em sync. Retorna None se não configurado."""
+    turso_url = _get_secret_or_env("TURSO_DATABASE_URL")
+    turso_token = _get_secret_or_env("TURSO_AUTH_TOKEN")
+    if not (turso_url and turso_token):
+        return None
+    try:
+        return TursoConnection(turso_url, turso_token)
+    except Exception:
+        return None
+
+def _detectar_tabela_insert(sql):
+    """Pega o nome da tabela de um INSERT INTO."""
+    m = re.match(r'^\s*INSERT\s+(?:OR\s+\w+\s+)?INTO\s+(\w+)', sql, re.IGNORECASE)
+    return m.group(1) if m else None
+
+def _adicionar_id_ao_insert(sql, params, novo_id):
+    """Reescreve 'INSERT INTO t (c1, c2) VALUES (?, ?)' pra incluir id explícito.
+    Retorna (sql_modificado, params_modificados)."""
+    m = re.match(
+        r'^(\s*INSERT\s+(?:OR\s+\w+\s+)?INTO\s+\w+)\s*\(([^)]+)\)\s*VALUES\s*\(([^)]+)\)(.*)$',
+        sql, re.IGNORECASE | re.DOTALL
+    )
+    if not m:
+        return sql, params  # padrão não bate, deixa como está
+    insert_part = m.group(1)
+    cols = m.group(2).strip()
+    values = m.group(3).strip()
+    rest = m.group(4) or ''
+    new_sql = f"{insert_part} (id, {cols}) VALUES (?, {values}){rest}"
+    new_params = (novo_id,) + tuple(params)
+    return new_sql, new_params
+
+def _sync_write_para_turso(sql, params, local_lastrowid):
+    """Escreve a operação no Turso pra manter persistência. Síncrono mas 
+    não bloqueia em caso de erro - só registra o erro."""
+    if backend_banco() != 'turso':
+        return
+    turso = _conectar_turso()
+    if turso is None:
+        return
+    try:
+        is_insert = re.match(r'^\s*INSERT', sql, re.IGNORECASE) is not None
+        if is_insert and local_lastrowid:
+            # Reescreve INSERT pra incluir id explícito - garante sincronia de IDs
+            new_sql, new_params = _adicionar_id_ao_insert(sql, params, local_lastrowid)
+            try:
+                turso.execute(new_sql, new_params)
+            except sqlite3.OperationalError as e:
+                if 'unique' not in str(e).lower():
+                    # UNIQUE error é OK (registro já existia) - outros logam
+                    _TURSO_WRITE_ERROS.append(f"INSERT '{_detectar_tabela_insert(sql)}': {e}")
+        else:
+            # UPDATE/DELETE/ALTER/CREATE - aplica direto
+            try:
+                turso.execute(sql, params)
+            except sqlite3.OperationalError as e:
+                msg = str(e).lower()
+                if 'duplicate' not in msg and 'already' not in msg and 'unique' not in msg:
+                    _TURSO_WRITE_ERROS.append(f"SQL: {e}")
+    except Exception as e:
+        _TURSO_WRITE_ERROS.append(f"{type(e).__name__}: {e}")
+
 def executar(query, params=()):
+    """Executa write no SQLite local (rápido). Sincroniza pro Turso pra persistência."""
     con = conectar()
     cur = con.execute(query, params)
     last = cur.lastrowid
     con.commit(); con.close()
-    # Invalida caches de leitura quando há escrita
+    # Sincroniza pro Turso (síncrono mas tolera falha)
+    _sync_write_para_turso(query, params, last)
+    # Invalida caches de leitura
     try:
         consultar_cached.clear()
         listar_modulos_cached.clear()
@@ -2454,9 +2514,86 @@ def iniciar_banco():
     con.commit(); con.close()
 
 @st.cache_resource
+def _restaurar_snapshot_do_turso_se_necessario():
+    """Se Turso configurado E o SQLite local não tem dados ainda, baixa snapshot 
+    completo do Turso pro arquivo local. Roda UMA vez por processo."""
+    global _SNAPSHOT_RESTAURADO
+
+    if backend_banco() != 'turso':
+        return False  # sem Turso, nada a fazer
+
+    # Verifica se SQLite local já tem dados
+    import os
+    if os.path.exists(DB_PATH):
+        try:
+            con = sqlite3.connect(DB_PATH)
+            tabelas = con.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='modulos'"
+            ).fetchall()
+            if tabelas:
+                count = con.execute("SELECT COUNT(*) FROM modulos").fetchone()[0]
+                con.close()
+                if count > 0:
+                    _SNAPSHOT_RESTAURADO = True
+                    return True  # já tem dados
+            con.close()
+        except sqlite3.OperationalError:
+            pass
+
+    # Baixa snapshot do Turso
+    turso = _conectar_turso()
+    if turso is None:
+        return False
+
+    try:
+        con_local = sqlite3.connect(DB_PATH)
+
+        # Pega lista de tabelas com seus DDLs
+        tables_rows = turso.execute(
+            "SELECT name, sql FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
+        ).fetchall()
+
+        for nome, ddl in tables_rows:
+            if not ddl or not nome:
+                continue
+            # Cria a tabela localmente
+            try:
+                con_local.execute(ddl)
+            except sqlite3.OperationalError:
+                pass  # provavelmente já existe
+
+            # Copia os dados
+            cols_info = turso.execute(f"PRAGMA table_info({nome})").fetchall()
+            col_names = [c[1] for c in cols_info]
+            if not col_names:
+                continue
+
+            placeholders = ','.join(['?'] * len(col_names))
+            col_list = ','.join(col_names)
+            dados = turso.execute(f"SELECT {col_list} FROM {nome}").fetchall()
+            for row in dados:
+                try:
+                    con_local.execute(
+                        f"INSERT INTO {nome} ({col_list}) VALUES ({placeholders})",
+                        row
+                    )
+                except (sqlite3.OperationalError, sqlite3.IntegrityError):
+                    pass  # duplicado/erro - segue
+
+        con_local.commit()
+        con_local.close()
+        _SNAPSHOT_RESTAURADO = True
+        return True
+    except Exception as e:
+        _INIT_ERROS.append(f"Restaurar snapshot Turso falhou: {type(e).__name__}: {e}")
+        return False
+
+@st.cache_resource
 def _iniciar_banco_uma_vez():
-    """Wrapper cached - garante que iniciar_banco() rode APENAS UMA VEZ
-    por processo, não a cada rerun. Crítico pra performance com Turso (HTTP)."""
+    """Wrapper cached - garante que tudo rode APENAS UMA VEZ por processo:
+    1. Restaura snapshot do Turso (se configurado e local vazio)
+    2. Roda iniciar_banco() pra migrations e dados iniciais"""
+    _restaurar_snapshot_do_turso_se_necessario()
     iniciar_banco()
     return True
 
@@ -2928,13 +3065,17 @@ elif st.session_state.tela == "admin":
     # Status do banco de dados
     backend = backend_banco()
     if backend == "turso":
+        snap = "✅ Snapshot do Turso restaurado pra SQLite local" if _SNAPSHOT_RESTAURADO else "⚠️ Snapshot não restaurado (banco local inicializado vazio)"
+        erros_count = len(_TURSO_WRITE_ERROS)
+        erros_msg = f"<br><b style='color:var(--accent);'>⚠️ {erros_count} writes falharam no Turso</b> (mas estão salvos local)" if erros_count > 0 else ""
         st.markdown(
             "<div style='background:rgba(16,185,129,0.12);border:1px solid var(--primary);"
-            "border-radius:10px;padding:12px 16px;margin:12px 0;display:flex;align-items:center;gap:12px;'>"
-            "<div style='font-size:1.6rem;'>🛡️</div>"
-            "<div><b style='color:var(--primary);'>Banco persistente: Turso (na nuvem)</b><br>"
-            "<span style='color:var(--text-dim);font-size:0.9rem;'>Dados protegidos. "
-            "O app pode dormir/reiniciar à vontade — nada se perde.</span></div></div>",
+            "border-radius:10px;padding:12px 16px;margin:12px 0;display:flex;align-items:start;gap:12px;'>"
+            "<div style='font-size:1.6rem;'>🚀</div>"
+            f"<div><b style='color:var(--primary);'>Modo híbrido: SQLite local + sync com Turso</b><br>"
+            f"<span style='color:var(--text-dim);font-size:0.9rem;'>"
+            f"Leituras são instantâneas (locais). Escritas vão pra ambos pra persistência.<br>"
+            f"{snap}{erros_msg}</span></div></div>",
             unsafe_allow_html=True
         )
     else:
@@ -2974,6 +3115,13 @@ elif st.session_state.tela == "admin":
                 st.text(f"{i}. {erro}")
             if len(_INIT_ERROS) > 50:
                 st.caption(f"... mais {len(_INIT_ERROS) - 50} erros omitidos.")
+
+    if _TURSO_WRITE_ERROS:
+        with st.expander(f"⚠️ {len(_TURSO_WRITE_ERROS)} writes falharam no Turso (dados salvos localmente)"):
+            st.caption("Os dados foram salvos LOCALMENTE. O sync pro Turso falhou nestes casos. "
+                       "Em geral, são problemas de rede temporários ou conflitos de schema (não críticos).")
+            for i, erro in enumerate(_TURSO_WRITE_ERROS[:50], 1):
+                st.text(f"{i}. {erro}")
 
     with aba1:
         st.markdown("### Todos os alunos")
