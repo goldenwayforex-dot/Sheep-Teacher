@@ -3695,6 +3695,38 @@ def render_sidebar():
 render_sidebar()
 
 # =========================================================
+# HANDLER de cliques nas bolinhas da trilha SVG (via query params)
+# =========================================================
+# Quando o aluno clica em uma bolinha do SVG, a URL recebe ?go_licao=X&mod=Y&idx=Z
+# Aqui detectamos e disparamos a lição correspondente.
+try:
+    _qp_go = st.query_params.get("go_licao")
+    if _qp_go and st.session_state.get("uid"):
+        try:
+            _qp_mid = int(st.query_params.get("mod", "0"))
+            _qp_idx = int(st.query_params.get("idx", "0"))
+            # Carrega trilha do módulo e prepara lição
+            st.session_state.trilha = consultar(
+                "SELECT id, pergunta, opcao_1, opcao_2, opcao_3, opcao_4, resposta_correta, explicacao FROM licoes WHERE modulo_id = ? ORDER BY id",
+                (_qp_mid,)
+            )
+            st.session_state.idx = _qp_idx
+            st.session_state.vidas = 3
+            st.session_state.respondido = False
+            st.session_state.opcoes_atuais = []
+            st.session_state.erros_na_licao = 0
+            st.session_state.modo_revisao = False
+            st.session_state.veio_de_trilha = True
+            st.session_state.trilha_modulo_id = _qp_mid
+            st.session_state.tela = "licao"
+            st.query_params.clear()
+            st.rerun()
+        except (ValueError, TypeError):
+            st.query_params.clear()
+except Exception:
+    pass
+
+# =========================================================
 # TELA: LOGIN (redesenhada)
 # =========================================================
 if st.session_state.tela == "login":
@@ -4516,163 +4548,184 @@ elif st.session_state.tela == "trilha_modulo":
             if total == 0:
                 st.info("Esse módulo ainda não tem lições.")
             else:
-                # ===== TRILHA EM ZIGZAG =====
-                # Acha o primeiro índice não-completo (próxima lição = "current")
+                # ===== TRILHA COMO UM ÚNICO SVG =====
+                # Tudo (linhas + bolinhas + labels + mascote) em UM bloco SVG
+                # garante que as linhas conectem EXATAMENTE no centro das bolinhas.
+                # Clicks viram via <a href="?go_licao=X&mod=Y&idx=Z"> capturado no topo.
                 proximo_idx = next((i for i, (lid, _) in enumerate(licoes_mod) if lid not in feitas_ids), None)
 
                 def _pos_zigzag(i):
-                    """Posição em coluna 0-4 baseado em senoide."""
                     raw = 2 + 2 * math.sin(i * 0.9)
                     return max(0, min(4, int(round(raw))))
 
-                def _conector_svg(pos_de, pos_para, estado):
-                    """SVG de curva Bezier conectando duas posições de coluna (0-4).
-                    Altura FIXA em px (não escala com a largura do container).
-                    Stroke mantém espessura real graças a vector-effect='non-scaling-stroke'.
-                    Path extrapola o viewBox + margin negativo = linha entra dentro das bolinhas."""
-                    # ViewBox 100x100 (proporção 1:1). x: 0-100 em "%" das colunas.
-                    x1 = pos_de * 20 + 10   # 10, 30, 50, 70, 90
-                    x2 = pos_para * 20 + 10
-                    diff = abs(pos_para - pos_de)
-                    # Altura do conector EM PIXELS (fixa, não escala com largura)
-                    h = 70 + min(diff, 4) * 18  # 70, 88, 106, 124, 142 px
-                    # Extensão pra fora do viewBox (em unidades viewBox = 0-100)
-                    ext_vb = 45  # 45% do viewBox
-                    # Em px real: ext_px = ext_vb * h / 100
-                    ext_px = int(ext_vb * h / 100)
-                    if estado == "completo":
-                        cor = "#10B981"; op = 0.95; dash = ""
-                    elif estado == "atual":
-                        cor = "#FCD34D"; op = 0.9; dash = ""
-                    else:
-                        cor = "#64748B"; op = 0.45; dash = "stroke-dasharray='7 7'"
-                    # Bezier S-curve com tangentes verticais nos endpoints
-                    y_start = -ext_vb
-                    y_end = 100 + ext_vb
-                    ctrl_y = 50
-                    return (
-                        f"<div style='margin:-{ext_px}px 0;padding:0;line-height:0;'>"
-                        f"<svg viewBox='0 0 100 100' preserveAspectRatio='none' "
-                        f"style='width:100%;height:{h}px;display:block;overflow:visible;'>"
-                        f"<path d='M {x1} {y_start} C {x1} {ctrl_y}, {x2} {ctrl_y}, {x2} {y_end}' "
-                        f"stroke='{cor}' stroke-width='8' stroke-linecap='round' "
-                        f"fill='none' opacity='{op}' "
-                        f"vector-effect='non-scaling-stroke' {dash} />"
-                        f"</svg></div>"
-                    )
-
-                # Função auxiliar pra iniciar uma lição
-                def _iniciar_licao(modulo_id, idx_inicial):
-                    st.session_state.trilha = consultar(
-                        "SELECT id, pergunta, opcao_1, opcao_2, opcao_3, opcao_4, resposta_correta, explicacao FROM licoes WHERE modulo_id = ? ORDER BY id",
-                        (modulo_id,)
-                    )
-                    st.session_state.idx = idx_inicial
-                    st.session_state.vidas = 3
-                    st.session_state.respondido = False
-                    st.session_state.opcoes_atuais = []
-                    st.session_state.erros_na_licao = 0
-                    st.session_state.modo_revisao = False
-                    st.session_state.veio_de_trilha = True  # marca pra voltar pra trilha
-                    st.session_state.tela = "licao"
-
-                # ÍCONE INICIAL DO LIVRO (decorativo no topo)
-                cols_book = st.columns(5)
-                with cols_book[2]:
-                    st.markdown("<div class='trilha-step-book'></div>", unsafe_allow_html=True)
-                    st.button("📖", key=f"book_top_{mid}", disabled=True)
-                    st.markdown(f"<div class='trilha-label'>Início</div>", unsafe_allow_html=True)
-
-                # Estado pra rastrear conectores entre passos
-                pos_anterior = 2  # livro do topo está na coluna 2
-                alcancou_anterior = True  # livro é sempre "alcançado"
-
-                # Loop pelas lições
+                # ---- Constrói lista de "passos" da trilha ----
+                passos = [{"tipo": "book", "label": "Início"}]
                 for i, (lid, titulo_botao) in enumerate(licoes_mod):
                     eh_completa = lid in feitas_ids
                     eh_atual = (i == proximo_idx)
-                    eh_bloqueada = (not eh_completa) and (not eh_atual)
-                    posicao = _pos_zigzag(i)
-
-                    # ===== CONECTOR ANTES DA BOLINHA =====
-                    if alcancou_anterior and eh_completa:
-                        estado_conector = "completo"
-                    elif alcancou_anterior and eh_atual:
-                        estado_conector = "atual"
-                    else:
-                        estado_conector = "futuro"
-                    st.markdown(_conector_svg(pos_anterior, posicao, estado_conector), unsafe_allow_html=True)
-
-                    cols = st.columns(5)
-
-                    # Mascote ao lado da lição atual
-                    if eh_atual:
-                        mascote_col = posicao - 1 if posicao >= 2 else posicao + 1
-                        with cols[mascote_col]:
-                            st.markdown(
-                                f"<div class='trilha-mascote' style='font-size:3rem;text-align:center;'>🐑</div>"
-                                f"<div class='trilha-label' style='color:var(--accent);font-weight:700;'>👇 Você está aqui!</div>",
-                                unsafe_allow_html=True
-                            )
-
-                    # Bolinha da lição
-                    with cols[posicao]:
-                        if eh_completa:
-                            st.markdown("<div class='trilha-step-complete'></div>", unsafe_allow_html=True)
-                            if st.button("✓", key=f"trilha_step_{lid}", help=f"Refazer: {titulo_botao}"):
-                                _iniciar_licao(mid, i); st.rerun()
-                            st.markdown(f"<div class='trilha-label'>{titulo_botao}</div>", unsafe_allow_html=True)
-                        elif eh_atual:
-                            st.markdown("<div class='trilha-step-current'></div>", unsafe_allow_html=True)
-                            if st.button("▶", key=f"trilha_step_{lid}", help=f"Começar: {titulo_botao}"):
-                                _iniciar_licao(mid, i); st.rerun()
-                            st.markdown(f"<div class='trilha-label' style='color:var(--accent);font-weight:700;'>{titulo_botao}</div>", unsafe_allow_html=True)
-                        else:  # bloqueada - mostra o NÚMERO da fase
-                            st.markdown("<div class='trilha-step-locked'></div>", unsafe_allow_html=True)
-                            st.button(str(i + 1), key=f"trilha_step_{lid}", disabled=True, help=f"🔒 {titulo_botao} - Complete as anteriores pra desbloquear")
-                            st.markdown(f"<div class='trilha-label'>{titulo_botao}</div>", unsafe_allow_html=True)
-
-                    # Atualiza estado pro próximo conector
-                    pos_anterior = posicao
-                    alcancou_anterior = eh_completa
-
-                    # A cada 5 lições, mostrar um baú decorativo (entre as lições)
+                    estado = "completa" if eh_completa else ("atual" if eh_atual else "bloqueada")
+                    passos.append({
+                        "tipo": "licao", "lid": lid, "idx": i,
+                        "label": titulo_botao, "estado": estado, "num": i + 1,
+                    })
+                    # Baú a cada 5 lições (decorativo)
                     if (i + 1) % 5 == 0 and i < total - 1:
-                        chest_pos = _pos_zigzag(i + 1)
-                        ja_alcancou = (feitas >= i + 1)
-                        # Conector pro baú
-                        estado_conector_chest = "completo" if (alcancou_anterior and ja_alcancou) else "futuro"
-                        st.markdown(_conector_svg(pos_anterior, chest_pos, estado_conector_chest), unsafe_allow_html=True)
+                        passos.append({
+                            "tipo": "chest", "label": f"Marco {(i+1)//5}",
+                            "alcancou": (feitas >= i + 1),
+                        })
+                # Troféu final
+                passos.append({
+                    "tipo": "trofeu",
+                    "label": "🎉 Módulo concluído!" if feitas == total else "Conclua todas",
+                    "alcancou": (feitas == total),
+                })
 
-                        cols_chest = st.columns(5)
-                        with cols_chest[chest_pos]:
-                            classe = "trilha-step-chest" if ja_alcancou else "trilha-step-locked"
-                            st.markdown(f"<div class='{classe}'></div>", unsafe_allow_html=True)
-                            st.button("🎁", key=f"chest_{mid}_{i}", disabled=True,
-                                      help="Marco de progresso! Continue completando lições.")
-                            st.markdown(
-                                f"<div class='trilha-label'>{'🌟 Conquistado!' if ja_alcancou else f'Marco {(i+1)//5}'}</div>",
-                                unsafe_allow_html=True
-                            )
-                        # Atualiza estado
-                        pos_anterior = chest_pos
-                        alcancou_anterior = ja_alcancou
+                # ---- Calcula posições (x, y) de cada passo no SVG ----
+                SVG_W = 800              # viewBox width (px)
+                SPACING_Y = 130          # px entre bolinhas
+                PAD_TOP = 70             # padding superior
+                COL_X = [80, 240, 400, 560, 720]  # x do centro de cada coluna (0-4)
+                R_CIRC = 38              # raio das bolinhas
 
-                # CONECTOR PRO TROFÉU FINAL
-                todas_completas = (feitas == total)
-                estado_conector_final = "completo" if (alcancou_anterior and todas_completas) else "futuro"
-                st.markdown(_conector_svg(pos_anterior, 2, estado_conector_final), unsafe_allow_html=True)
+                for i, p in enumerate(passos):
+                    pos_col = _pos_zigzag(i)
+                    p["x"] = COL_X[pos_col]
+                    p["y"] = PAD_TOP + i * SPACING_Y
 
-                # BAÚ FINAL (decorativo)
-                cols_end = st.columns(5)
-                with cols_end[2]:
-                    classe_end = "trilha-step-chest" if todas_completas else "trilha-step-locked"
-                    st.markdown(f"<div class='{classe_end}'></div>", unsafe_allow_html=True)
-                    st.button("🏆", key=f"end_{mid}", disabled=True)
-                    st.markdown(
-                        f"<div class='trilha-label'>{'🎉 Módulo concluído!' if todas_completas else 'Conclua todas pra desbloquear'}</div>",
-                        unsafe_allow_html=True
+                SVG_H = PAD_TOP + (len(passos) - 1) * SPACING_Y + 90  # padding inferior
+
+                # ---- Constrói o SVG ----
+                svg_parts = [
+                    f'<svg viewBox="0 0 {SVG_W} {SVG_H}" xmlns="http://www.w3.org/2000/svg" '
+                    f'style="display:block;width:100%;max-width:720px;height:auto;margin:0 auto;">'
+                ]
+
+                # 1) LINHAS entre passos (renderizadas PRIMEIRO pra ficarem ATRÁS das bolinhas)
+                for i in range(1, len(passos)):
+                    a, b = passos[i-1], passos[i]
+                    # Determinar estado da linha (completa, atual, futuro)
+                    a_alcancou = (
+                        a["tipo"] in ("book",) or
+                        (a["tipo"] == "licao" and a["estado"] == "completa") or
+                        (a["tipo"] == "chest" and a.get("alcancou")) or
+                        (a["tipo"] == "trofeu" and a.get("alcancou"))
                     )
+                    b_alcancou = (
+                        (b["tipo"] == "licao" and b["estado"] == "completa") or
+                        (b["tipo"] == "chest" and b.get("alcancou")) or
+                        (b["tipo"] == "trofeu" and b.get("alcancou"))
+                    )
+                    b_atual = (b["tipo"] == "licao" and b["estado"] == "atual")
+                    if a_alcancou and b_alcancou:
+                        cor, op, dash = "#10B981", "0.95", ""
+                    elif a_alcancou and b_atual:
+                        cor, op, dash = "#FCD34D", "0.9", ""
+                    else:
+                        cor, op, dash = "#64748B", "0.45", ' stroke-dasharray="8 7"'
+                    # Curva Bezier S com tangentes verticais nos endpoints
+                    mid_y = (a["y"] + b["y"]) / 2
+                    svg_parts.append(
+                        f'<path d="M {a["x"]} {a["y"]} C {a["x"]} {mid_y} {b["x"]} {mid_y} {b["x"]} {b["y"]}" '
+                        f'stroke="{cor}" stroke-width="10" stroke-linecap="round" fill="none" '
+                        f'opacity="{op}"{dash} />'
+                    )
+
+                # 2) BOLINHAS (clicáveis via <a> quando completa ou atual)
+                for p in passos:
+                    cx, cy = p["x"], p["y"]
+                    tipo, label = p["tipo"], p["label"]
+                    # Cores e ícone por tipo/estado
+                    if tipo == "book":
+                        fill, stroke, ic, ic_color = "#0284C7", "#075985", "📖", "white"
+                        clickable = False
+                    elif tipo == "licao":
+                        if p["estado"] == "completa":
+                            fill, stroke, ic, ic_color = "#10B981", "#047857", "✓", "white"
+                            clickable = True
+                        elif p["estado"] == "atual":
+                            fill, stroke, ic, ic_color = "#F59E0B", "#B45309", "▶", "#422006"
+                            clickable = True
+                        else:  # bloqueada → mostra o NÚMERO
+                            fill, stroke, ic, ic_color = "#475569", "#1E293B", str(p["num"]), "#CBD5E1"
+                            clickable = False
+                    elif tipo == "chest":
+                        if p.get("alcancou"):
+                            fill, stroke, ic, ic_color = "#FCD34D", "#92400E", "🎁", "#422006"
+                        else:
+                            fill, stroke, ic, ic_color = "#475569", "#1E293B", "🎁", "#94A3B8"
+                        clickable = False
+                    else:  # trofeu
+                        if p.get("alcancou"):
+                            fill, stroke, ic, ic_color = "#FCD34D", "#92400E", "🏆", "#422006"
+                        else:
+                            fill, stroke, ic, ic_color = "#475569", "#1E293B", "🏆", "#94A3B8"
+                        clickable = False
+
+                    # Animação pulsante na bolinha atual
+                    is_current = (tipo == "licao" and p.get("estado") == "atual")
+                    extra_anim = ""
+                    if is_current:
+                        extra_anim = (
+                            f'<animate attributeName="r" values="{R_CIRC};{R_CIRC+4};{R_CIRC}" '
+                            f'dur="1.6s" repeatCount="indefinite"/>'
+                        )
+
+                    if clickable:
+                        href = f"?go_licao={p['lid']}&mod={mid}&idx={p['idx']}"
+                        svg_parts.append(f'<a href="{href}" target="_self" style="cursor:pointer;">')
+
+                    # Sombra (círculo de baixo)
+                    svg_parts.append(
+                        f'<circle cx="{cx}" cy="{cy+5}" r="{R_CIRC}" fill="rgba(0,0,0,0.35)" />'
+                    )
+                    # Círculo principal
+                    svg_parts.append(
+                        f'<circle cx="{cx}" cy="{cy}" r="{R_CIRC}" fill="{fill}" '
+                        f'stroke="{stroke}" stroke-width="3">{extra_anim}</circle>'
+                    )
+                    # Ícone/texto centralizado dentro
+                    svg_parts.append(
+                        f'<text x="{cx}" y="{cy + 13}" text-anchor="middle" fill="{ic_color}" '
+                        f'font-size="34" font-weight="800" font-family="Sora, Inter, sans-serif" '
+                        f'style="pointer-events:none;user-select:none;">{ic}</text>'
+                    )
+                    if clickable:
+                        svg_parts.append('</a>')
+
+                    # Label embaixo da bolinha
+                    label_color = "#F59E0B" if is_current else "#94A3B8"
+                    label_weight = "700" if is_current else "600"
+                    svg_parts.append(
+                        f'<text x="{cx}" y="{cy + R_CIRC + 22}" text-anchor="middle" '
+                        f'fill="{label_color}" font-size="13" font-weight="{label_weight}" '
+                        f'font-family="Inter, sans-serif">{label}</text>'
+                    )
+
+                # 3) MASCOTE ao lado da lição atual
+                atual_passo = next((p for p in passos if p.get("estado") == "atual"), None)
+                if atual_passo:
+                    # Mascote do lado oposto (pra não sobrepor)
+                    atual_x = atual_passo["x"]
+                    if atual_x >= 400:
+                        mascote_x = atual_x - 200
+                    else:
+                        mascote_x = atual_x + 200
+                    mascote_y = atual_passo["y"]
+                    svg_parts.append(
+                        f'<text x="{mascote_x}" y="{mascote_y + 12}" text-anchor="middle" '
+                        f'font-size="52" style="user-select:none;">🐑</text>'
+                    )
+                    svg_parts.append(
+                        f'<text x="{mascote_x}" y="{mascote_y + 50}" text-anchor="middle" '
+                        f'fill="#F59E0B" font-size="12" font-weight="700" '
+                        f'font-family="Inter, sans-serif">👇 Você está aqui!</text>'
+                    )
+
+                svg_parts.append('</svg>')
+
+                # Renderiza a trilha inteira em UM markdown
+                st.markdown("".join(svg_parts), unsafe_allow_html=True)
 
                 if feitas == total and total > 0:
                     st.markdown("<br>", unsafe_allow_html=True)
