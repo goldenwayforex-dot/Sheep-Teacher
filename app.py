@@ -348,59 +348,95 @@ h1, h2, h3, h4 {
 h1 a[href*="#"], h2 a[href*="#"], h3 a[href*="#"], h4 a[href*="#"] { display: none !important; }
 [data-testid="stHeaderActionElements"] { display: none !important; }
 
-/* === TRILHA GAMIFICADA (estilo Duolingo) === */
-.trilha-step-complete + div[data-testid="stButton"] > button,
-.trilha-step-current + div[data-testid="stButton"] > button,
-.trilha-step-locked + div[data-testid="stButton"] > button,
-.trilha-step-chest + div[data-testid="stButton"] > button,
-.trilha-step-book + div[data-testid="stButton"] > button {
+/* === TRILHA GAMIFICADA (estilo Duolingo) ===
+ * Usamos :has() pq Streamlit envolve cada componente em wrapper próprio,
+ * então o div.trilha-step-X NÃO É irmão direto do div[data-testid="stButton"].
+ * Mas o wrapper PAI (stMarkdown) É irmão direto do stButton.
+ */
+
+/* Centraliza o botão dentro da coluna (Streamlit não centraliza por padrão) */
+div[data-testid="stMarkdownContainer"]:has(.trilha-step-complete) + div[data-testid="stButton"],
+div[data-testid="stMarkdownContainer"]:has(.trilha-step-current) + div[data-testid="stButton"],
+div[data-testid="stMarkdownContainer"]:has(.trilha-step-locked) + div[data-testid="stButton"],
+div[data-testid="stMarkdownContainer"]:has(.trilha-step-chest) + div[data-testid="stButton"],
+div[data-testid="stMarkdownContainer"]:has(.trilha-step-book) + div[data-testid="stButton"],
+[data-testid="stElementContainer"]:has(.trilha-step-complete) + [data-testid="stElementContainer"],
+[data-testid="stElementContainer"]:has(.trilha-step-current) + [data-testid="stElementContainer"],
+[data-testid="stElementContainer"]:has(.trilha-step-locked) + [data-testid="stElementContainer"],
+[data-testid="stElementContainer"]:has(.trilha-step-chest) + [data-testid="stElementContainer"],
+[data-testid="stElementContainer"]:has(.trilha-step-book) + [data-testid="stElementContainer"] {
+    display: flex !important;
+    justify-content: center !important;
+    width: 100% !important;
+}
+
+/* Tamanho/forma redonda da bolinha */
+[data-testid="stElementContainer"]:has(.trilha-step-complete) + [data-testid="stElementContainer"] button,
+[data-testid="stElementContainer"]:has(.trilha-step-current) + [data-testid="stElementContainer"] button,
+[data-testid="stElementContainer"]:has(.trilha-step-locked) + [data-testid="stElementContainer"] button,
+[data-testid="stElementContainer"]:has(.trilha-step-chest) + [data-testid="stElementContainer"] button,
+[data-testid="stElementContainer"]:has(.trilha-step-book) + [data-testid="stElementContainer"] button,
+div[data-testid="stMarkdownContainer"]:has(.trilha-step-complete) + div[data-testid="stButton"] button,
+div[data-testid="stMarkdownContainer"]:has(.trilha-step-current) + div[data-testid="stButton"] button,
+div[data-testid="stMarkdownContainer"]:has(.trilha-step-locked) + div[data-testid="stButton"] button,
+div[data-testid="stMarkdownContainer"]:has(.trilha-step-chest) + div[data-testid="stButton"] button,
+div[data-testid="stMarkdownContainer"]:has(.trilha-step-book) + div[data-testid="stButton"] button {
     width: 78px !important; height: 78px !important;
-    min-height: 78px !important;
+    min-height: 78px !important; max-width: 78px !important;
     border-radius: 50% !important;
     font-size: 1.8rem !important; font-weight: 800 !important;
-    padding: 0 !important; margin: 0 auto !important;
+    padding: 0 !important;
     display: flex !important; align-items: center !important; justify-content: center !important;
     box-shadow: 0 6px 0 rgba(0,0,0,0.25), 0 8px 24px rgba(0,0,0,0.3) !important;
     transition: transform 0.1s, box-shadow 0.1s !important;
     border: none !important;
+    font-family: 'Sora', sans-serif !important;
+    font-variant-numeric: tabular-nums !important;
 }
-.trilha-step-complete + div[data-testid="stButton"] > button {
+
+/* Cores por estado */
+[data-testid="stElementContainer"]:has(.trilha-step-complete) + [data-testid="stElementContainer"] button,
+div[data-testid="stMarkdownContainer"]:has(.trilha-step-complete) + div[data-testid="stButton"] button {
     background: linear-gradient(180deg, #10B981, #059669) !important;
     color: white !important;
     box-shadow: 0 6px 0 #047857, 0 8px 24px rgba(16,185,129,0.5) !important;
 }
-.trilha-step-current + div[data-testid="stButton"] > button {
+[data-testid="stElementContainer"]:has(.trilha-step-current) + [data-testid="stElementContainer"] button,
+div[data-testid="stMarkdownContainer"]:has(.trilha-step-current) + div[data-testid="stButton"] button {
     background: linear-gradient(180deg, #FCD34D, #F59E0B) !important;
     color: #422006 !important;
     box-shadow: 0 6px 0 #B45309, 0 8px 24px rgba(245,158,11,0.6) !important;
     animation: trilha-pulse 1.6s ease-in-out infinite;
 }
-.trilha-step-locked + div[data-testid="stButton"] > button {
+[data-testid="stElementContainer"]:has(.trilha-step-locked) + [data-testid="stElementContainer"] button,
+div[data-testid="stMarkdownContainer"]:has(.trilha-step-locked) + div[data-testid="stButton"] button {
     background: linear-gradient(180deg, #475569, #334155) !important;
-    color: #94A3B8 !important;
+    color: #CBD5E1 !important;
     box-shadow: 0 6px 0 #1E293B, 0 8px 16px rgba(0,0,0,0.2) !important;
 }
-.trilha-step-chest + div[data-testid="stButton"] > button {
+[data-testid="stElementContainer"]:has(.trilha-step-chest) + [data-testid="stElementContainer"] button,
+div[data-testid="stMarkdownContainer"]:has(.trilha-step-chest) + div[data-testid="stButton"] button {
     background: linear-gradient(180deg, #FCD34D, #D97706) !important;
     color: #422006 !important;
     box-shadow: 0 6px 0 #92400E, 0 8px 24px rgba(217,119,6,0.5) !important;
 }
-.trilha-step-book + div[data-testid="stButton"] > button {
+[data-testid="stElementContainer"]:has(.trilha-step-book) + [data-testid="stElementContainer"] button,
+div[data-testid="stMarkdownContainer"]:has(.trilha-step-book) + div[data-testid="stButton"] button {
     background: linear-gradient(180deg, #38BDF8, #0284C7) !important;
     color: white !important;
     box-shadow: 0 6px 0 #075985, 0 8px 24px rgba(56,189,248,0.5) !important;
 }
-.trilha-step-complete + div[data-testid="stButton"] > button:hover,
-.trilha-step-current + div[data-testid="stButton"] > button:hover,
-.trilha-step-chest + div[data-testid="stButton"] > button:hover,
-.trilha-step-book + div[data-testid="stButton"] > button:hover {
+
+/* Hover/active */
+[data-testid="stElementContainer"]:has(.trilha-step-complete) + [data-testid="stElementContainer"] button:hover,
+[data-testid="stElementContainer"]:has(.trilha-step-current) + [data-testid="stElementContainer"] button:hover,
+[data-testid="stElementContainer"]:has(.trilha-step-chest) + [data-testid="stElementContainer"] button:hover,
+[data-testid="stElementContainer"]:has(.trilha-step-book) + [data-testid="stElementContainer"] button:hover,
+div[data-testid="stMarkdownContainer"]:has(.trilha-step-complete) + div[data-testid="stButton"] button:hover,
+div[data-testid="stMarkdownContainer"]:has(.trilha-step-current) + div[data-testid="stButton"] button:hover {
     transform: translateY(-2px) !important;
 }
-.trilha-step-complete + div[data-testid="stButton"] > button:active,
-.trilha-step-current + div[data-testid="stButton"] > button:active {
-    transform: translateY(3px) !important;
-    box-shadow: 0 2px 0 rgba(0,0,0,0.25), 0 4px 12px rgba(0,0,0,0.3) !important;
-}
+
 @keyframes trilha-pulse {
     0%, 100% { transform: scale(1); }
     50% { transform: scale(1.06); }
@@ -419,13 +455,6 @@ h1 a[href*="#"], h2 a[href*="#"], h3 a[href*="#"], h4 a[href*="#"] { display: no
     margin-bottom: -10px;
     font-weight: 600; min-height: 14px;
     line-height: 1.2;
-}
-/* Números das fases dentro das bolinhas - texto grande e robusto */
-.trilha-step-complete + div[data-testid="stButton"] > button,
-.trilha-step-current + div[data-testid="stButton"] > button,
-.trilha-step-locked + div[data-testid="stButton"] > button {
-    font-family: 'Sora', sans-serif !important;
-    font-variant-numeric: tabular-nums !important;
 }
 .subtitulo { color: var(--text-dim); font-size: 1.05rem; }
 .destaque-lime { color: var(--primary); font-weight: 600; }
