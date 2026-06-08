@@ -4489,33 +4489,37 @@ elif st.session_state.tela == "trilha_modulo":
 
                 def _conector_svg(pos_de, pos_para, estado):
                     """SVG de curva Bezier conectando duas posições de coluna (0-4).
-                    O path EXTRAPOLA o viewBox (overflow:visible) e o div tem margin negativo,
-                    pra a linha 'entrar' dentro das bolinhas adjacentes e eliminar gaps verticais."""
-                    # ViewBox de 680px (largura típica do widget). Cada coluna = 136px.
-                    x1 = pos_de * 136 + 68   # centro horizontal da coluna de partida
-                    x2 = pos_para * 136 + 68 # centro horizontal da coluna de chegada
-                    # Altura base do SVG (área do "S" da curva)
+                    Altura FIXA em px (não escala com a largura do container).
+                    Stroke mantém espessura real graças a vector-effect='non-scaling-stroke'.
+                    Path extrapola o viewBox + margin negativo = linha entra dentro das bolinhas."""
+                    # ViewBox 100x100 (proporção 1:1). x: 0-100 em "%" das colunas.
+                    x1 = pos_de * 20 + 10   # 10, 30, 50, 70, 90
+                    x2 = pos_para * 20 + 10
                     diff = abs(pos_para - pos_de)
-                    h = 80 + min(diff, 4) * 12  # 80, 92, 104, 116, 128
-                    # Extensão pra fora do viewBox (penetra nas bolinhas adjacentes)
-                    ext = 45
+                    # Altura do conector EM PIXELS (fixa, não escala com largura)
+                    h = 90 + min(diff, 4) * 18  # 90, 108, 126, 144, 162 px
+                    # Extensão pra fora do viewBox (em unidades viewBox = 0-100)
+                    ext_vb = 35  # 35% da altura do viewBox
+                    # Em px real: ext_px = ext_vb * h / 100
+                    ext_px = int(ext_vb * h / 100)
                     if estado == "completo":
                         cor = "#10B981"; op = 0.95; dash = ""
                     elif estado == "atual":
                         cor = "#FCD34D"; op = 0.9; dash = ""
                     else:
-                        cor = "#64748B"; op = 0.4; dash = "stroke-dasharray='12 10'"
-                    # Path: começa ACIMA do viewBox (-ext), passa pela curva S no meio, termina ABAIXO
-                    ctrl_y = h / 2
-                    y_start = -ext
-                    y_end = h + ext
+                        cor = "#64748B"; op = 0.45; dash = "stroke-dasharray='7 7'"
+                    # Bezier S-curve com tangentes verticais nos endpoints
+                    y_start = -ext_vb
+                    y_end = 100 + ext_vb
+                    ctrl_y = 50
                     return (
-                        f"<div style='margin:-{ext}px 0;padding:0;line-height:0;position:relative;z-index:0;'>"
-                        f"<svg viewBox='0 0 680 {h}' "
-                        f"style='width:100%;height:auto;display:block;overflow:visible;'>"
+                        f"<div style='margin:-{ext_px}px 0;padding:0;line-height:0;'>"
+                        f"<svg viewBox='0 0 100 100' preserveAspectRatio='none' "
+                        f"style='width:100%;height:{h}px;display:block;overflow:visible;'>"
                         f"<path d='M {x1} {y_start} C {x1} {ctrl_y}, {x2} {ctrl_y}, {x2} {y_end}' "
-                        f"stroke='{cor}' stroke-width='9' stroke-linecap='round' "
-                        f"fill='none' opacity='{op}' {dash} />"
+                        f"stroke='{cor}' stroke-width='8' stroke-linecap='round' "
+                        f"fill='none' opacity='{op}' "
+                        f"vector-effect='non-scaling-stroke' {dash} />"
                         f"</svg></div>"
                     )
 
