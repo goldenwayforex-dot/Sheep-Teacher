@@ -4596,19 +4596,14 @@ elif st.session_state.tela == "trilha_modulo":
                 SVG_H = PAD_TOP + (len(passos) - 1) * SPACING_Y + 90  # padding inferior
 
                 # ---- Constrói o SVG ----
-                # Função JS no topo: preserva todos os query params existentes
-                # (como ?embed=true do Streamlit) e adiciona apenas os novos.
-                # Sem isso, o link substituiria TUDO e a sessão do Streamlit se perderia.
+                # Função JS no topo: preserva todos os query params existentes (como ?embed=true)
+                # e adiciona apenas os novos. Usa window.parent porque o SVG roda dentro
+                # de um iframe sandboxed do streamlit.components.v1.html.
                 svg_parts = [
-                    '<script>'
-                    'function trilhaGoLicao(lid, mid, idx) {'
-                    '  const p = new URLSearchParams(window.location.search);'
-                    '  p.set("go_licao", lid);'
-                    '  p.set("mod", mid);'
-                    '  p.set("idx", idx);'
-                    '  window.location.search = p.toString();'
-                    '}'
-                    '</script>',
+                    '<!DOCTYPE html><html><head><style>'
+                    'body{margin:0;padding:0;background:transparent;overflow:hidden;}'
+                    'svg{display:block;}'
+                    '</style></head><body>',
                     f'<svg viewBox="0 0 {SVG_W} {SVG_H}" xmlns="http://www.w3.org/2000/svg" '
                     f'style="display:block;width:100%;max-width:720px;height:auto;margin:0 auto;">'
                 ]
@@ -4738,9 +4733,34 @@ elif st.session_state.tela == "trilha_modulo":
                     )
 
                 svg_parts.append('</svg>')
+                # Script JS: usa window.parent porque o iframe é sandboxed.
+                # Preserva todos os query params existentes (?embed=true, theme, etc).
+                svg_parts.append(
+                    '<script>'
+                    'function trilhaGoLicao(lid, mid, idx) {'
+                    '  try {'
+                    '    const p = new URLSearchParams(window.parent.location.search);'
+                    '    p.set("go_licao", lid);'
+                    '    p.set("mod", mid);'
+                    '    p.set("idx", idx);'
+                    '    window.parent.location.search = p.toString();'
+                    '  } catch(e) {'
+                    # fallback: tenta na própria janela
+                    '    const p = new URLSearchParams(window.location.search);'
+                    '    p.set("go_licao", lid);'
+                    '    p.set("mod", mid);'
+                    '    p.set("idx", idx);'
+                    '    window.location.search = p.toString();'
+                    '  }'
+                    '}'
+                    '</script>'
+                )
+                svg_parts.append('</body></html>')
 
-                # Renderiza a trilha inteira em UM markdown
-                st.markdown("".join(svg_parts), unsafe_allow_html=True)
+                # Renderiza dentro de iframe (components.v1.html) pra o JavaScript executar.
+                # st.markdown sanitiza <script> por segurança - components.html não.
+                altura_iframe = SVG_H + 20
+                st.components.v1.html("".join(svg_parts), height=altura_iframe, scrolling=False)
 
                 if feitas == total and total > 0:
                     st.markdown("<br>", unsafe_allow_html=True)
