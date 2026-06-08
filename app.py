@@ -414,9 +414,18 @@ h1 a[href*="#"], h2 a[href*="#"], h3 a[href*="#"], h4 a[href*="#"] { display: no
     50% { transform: translateY(-8px); }
 }
 .trilha-label {
-    text-align: center; font-size: 0.78rem;
-    color: var(--text-dim); margin-top: 4px;
-    font-weight: 600; min-height: 18px;
+    text-align: center; font-size: 0.72rem;
+    color: var(--text-dim); margin-top: -2px;
+    margin-bottom: -10px;
+    font-weight: 600; min-height: 14px;
+    line-height: 1.2;
+}
+/* Números das fases dentro das bolinhas - texto grande e robusto */
+.trilha-step-complete + div[data-testid="stButton"] > button,
+.trilha-step-current + div[data-testid="stButton"] > button,
+.trilha-step-locked + div[data-testid="stButton"] > button {
+    font-family: 'Sora', sans-serif !important;
+    font-variant-numeric: tabular-nums !important;
 }
 .subtitulo { color: var(--text-dim); font-size: 1.05rem; }
 .destaque-lime { color: var(--primary); font-weight: 600; }
@@ -4497,9 +4506,9 @@ elif st.session_state.tela == "trilha_modulo":
                     x2 = pos_para * 20 + 10
                     diff = abs(pos_para - pos_de)
                     # Altura do conector EM PIXELS (fixa, não escala com largura)
-                    h = 90 + min(diff, 4) * 18  # 90, 108, 126, 144, 162 px
+                    h = 70 + min(diff, 4) * 18  # 70, 88, 106, 124, 142 px
                     # Extensão pra fora do viewBox (em unidades viewBox = 0-100)
-                    ext_vb = 35  # 35% da altura do viewBox
+                    ext_vb = 45  # 45% do viewBox
                     # Em px real: ext_px = ext_vb * h / 100
                     ext_px = int(ext_vb * h / 100)
                     if estado == "completo":
@@ -4589,9 +4598,9 @@ elif st.session_state.tela == "trilha_modulo":
                             if st.button("▶", key=f"trilha_step_{lid}", help=f"Começar: {titulo_botao}"):
                                 _iniciar_licao(mid, i); st.rerun()
                             st.markdown(f"<div class='trilha-label' style='color:var(--accent);font-weight:700;'>{titulo_botao}</div>", unsafe_allow_html=True)
-                        else:  # bloqueada
+                        else:  # bloqueada - mostra o NÚMERO da fase
                             st.markdown("<div class='trilha-step-locked'></div>", unsafe_allow_html=True)
-                            st.button("🔒", key=f"trilha_step_{lid}", disabled=True, help="Complete a lição anterior")
+                            st.button(str(i + 1), key=f"trilha_step_{lid}", disabled=True, help=f"🔒 {titulo_botao} - Complete as anteriores pra desbloquear")
                             st.markdown(f"<div class='trilha-label'>{titulo_botao}</div>", unsafe_allow_html=True)
 
                     # Atualiza estado pro próximo conector
