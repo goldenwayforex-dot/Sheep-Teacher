@@ -4595,10 +4595,9 @@ elif st.session_state.tela == "trilha_modulo":
 
                 SVG_H = PAD_TOP + (len(passos) - 1) * SPACING_Y + 90  # padding inferior
 
-                # ---- Constrói o SVG ----
-                # Função JS no topo: preserva todos os query params existentes (como ?embed=true)
-                # e adiciona apenas os novos. Usa window.parent porque o SVG roda dentro
-                # de um iframe sandboxed do streamlit.components.v1.html.
+                # ---- Constrói o SVG (visual apenas, sem clicks) ----
+                # Clicks são via botões Streamlit logo abaixo do SVG, mais robusto
+                # que tentar JS no iframe (que sofre com sandbox/CSP).
                 svg_parts = [
                     '<!DOCTYPE html><html><head><style>'
                     'body{margin:0;padding:0;background:transparent;overflow:hidden;}'
@@ -4678,13 +4677,6 @@ elif st.session_state.tela == "trilha_modulo":
                             f'dur="1.6s" repeatCount="indefinite"/>'
                         )
 
-                    if clickable:
-                        # <g onclick=...> em vez de <a href=...> pra preservar query params do Streamlit
-                        svg_parts.append(
-                            f'<g style="cursor:pointer;" '
-                            f'onclick="trilhaGoLicao({p["lid"]},{mid},{p["idx"]})">'
-                        )
-
                     # Sombra (círculo de baixo)
                     svg_parts.append(
                         f'<circle cx="{cx}" cy="{cy+5}" r="{R_CIRC}" fill="rgba(0,0,0,0.35)" />'
@@ -4700,8 +4692,6 @@ elif st.session_state.tela == "trilha_modulo":
                         f'font-size="34" font-weight="800" font-family="Sora, Inter, sans-serif" '
                         f'style="pointer-events:none;user-select:none;">{ic}</text>'
                     )
-                    if clickable:
-                        svg_parts.append('</g>')
 
                     # Label embaixo da bolinha
                     label_color = "#F59E0B" if is_current else "#94A3B8"
@@ -4733,34 +4723,57 @@ elif st.session_state.tela == "trilha_modulo":
                     )
 
                 svg_parts.append('</svg>')
-                # Script JS: usa window.parent porque o iframe é sandboxed.
-                # Preserva todos os query params existentes (?embed=true, theme, etc).
-                svg_parts.append(
-                    '<script>'
-                    'function trilhaGoLicao(lid, mid, idx) {'
-                    '  try {'
-                    '    const p = new URLSearchParams(window.parent.location.search);'
-                    '    p.set("go_licao", lid);'
-                    '    p.set("mod", mid);'
-                    '    p.set("idx", idx);'
-                    '    window.parent.location.search = p.toString();'
-                    '  } catch(e) {'
-                    # fallback: tenta na própria janela
-                    '    const p = new URLSearchParams(window.location.search);'
-                    '    p.set("go_licao", lid);'
-                    '    p.set("mod", mid);'
-                    '    p.set("idx", idx);'
-                    '    window.location.search = p.toString();'
-                    '  }'
-                    '}'
-                    '</script>'
-                )
                 svg_parts.append('</body></html>')
 
-                # Renderiza dentro de iframe (components.v1.html) pra o JavaScript executar.
-                # st.markdown sanitiza <script> por segurança - components.html não.
+                # Renderiza o SVG (visual da trilha)
                 altura_iframe = SVG_H + 20
                 st.components.v1.html("".join(svg_parts), height=altura_iframe, scrolling=False)
+
+                # ===== BOTÕES DE AÇÃO =====
+                # Helper inline pra iniciar lição (sem JS, 100% server-side)
+                def _ir_pra_licao(modulo_id, idx_inicial):
+                    st.session_state.trilha = consultar(
+                        "SELECT id, pergunta, opcao_1, opcao_2, opcao_3, opcao_4, resposta_correta, explicacao FROM licoes WHERE modulo_id = ? ORDER BY id",
+                        (modulo_id,)
+                    )
+                    st.session_state.idx = idx_inicial
+                    st.session_state.vidas = 3
+                    st.session_state.respondido = False
+                    st.session_state.opcoes_atuais = []
+                    st.session_state.erros_na_licao = 0
+                    st.session_state.modo_revisao = False
+                    st.session_state.veio_de_trilha = True
+                    st.session_state.trilha_modulo_id = modulo_id
+                    st.session_state.tela = "licao"
+
+                # 1) Botão GRANDE pra próxima lição (dourado, pulsante)
+                if proximo_idx is not None:
+                    prox_lic = licoes_mod[proximo_idx]
+                    if st.button(
+                        f"▶  Começar Fase {proximo_idx + 1}: {prox_lic[1]}",
+                        type="primary",
+                        use_container_width=True,
+                        key=f"go_proxima_{mid}"
+                    ):
+                        _ir_pra_licao(mid, proximo_idx)
+                        st.rerun()
+
+                # 2) Refazer fases completas (expander)
+                if feitas > 0:
+                    with st.expander(f"🔄 Refazer fases concluídas ({feitas} disponível{'is' if feitas > 1 else ''})"):
+                        n_cols = min(4, feitas)
+                        cols_refazer = st.columns(n_cols)
+                        idx_col = 0
+                        for i, (lid, titulo_b) in enumerate(licoes_mod):
+                            if lid in feitas_ids:
+                                with cols_refazer[idx_col % n_cols]:
+                                    if st.button(
+                                        f"✓ Fase {i+1}: {titulo_b}",
+                                        key=f"refazer_{lid}_{mid}",
+                                        use_container_width=True
+                                    ):
+                                        _ir_pra_licao(mid, i); st.rerun()
+                                idx_col += 1
 
                 if feitas == total and total > 0:
                     st.markdown("<br>", unsafe_allow_html=True)
