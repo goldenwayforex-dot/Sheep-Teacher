@@ -4735,36 +4735,65 @@ elif st.session_state.tela == "trilha_modulo":
                 svg_parts.append('</svg>')
                 # Script: bolinha atual clicada → postMessage pro parent → listener clica
                 # no botão Streamlit "Começar Fase X". Assim a sessão é preservada.
+                # IMPORTANTE: re-registramos o listener a cada render do iframe, pra
+                # garantir que o closure referencia um iframe VIVO (caso contrário,
+                # o iframe anterior é destruído e o listener fica "morto").
                 svg_parts.append("""
 <script>
 (function() {
-  // Instala listener no parent UMA vez por página
   try {
-    if (!window.parent.__trilhaListenerOn) {
-      window.parent.__trilhaListenerOn = true;
-      window.parent.addEventListener('message', function(e) {
-        if (!e.data || e.data.type !== 'trilha_go_atual') return;
-        // Acha o marker do botão e clica nele
-        var doc = window.parent.document;
-        var marker = doc.querySelector('.trilha-trigger-marker');
-        if (!marker) return;
-        var stCont = marker.closest('[data-testid="stElementContainer"]');
-        if (!stCont) return;
-        var next = stCont.nextElementSibling;
-        while (next && !next.querySelector('button')) next = next.nextElementSibling;
-        if (next) {
-          var btn = next.querySelector('button');
-          if (btn) btn.click();
-        }
-      });
-    }
-  } catch(err) { console.warn('Trilha listener:', err); }
+    var parentWin = window.parent;
 
-  // Função chamada pelo onclick das bolinhas clicáveis
+    // Remove listener anterior (se existir) - garante que sempre há só 1 ativo
+    if (parentWin.__trilhaListenerFn) {
+      try { parentWin.removeEventListener('message', parentWin.__trilhaListenerFn); } catch(e){}
+    }
+
+    // Cria novo listener com closure deste iframe (que está vivo agora)
+    var listenerFn = function(e) {
+      if (!e || !e.data || e.data.type !== 'trilha_go_atual') return;
+      try {
+        var doc = parentWin.document;
+        var marker = doc.querySelector('.trilha-trigger-marker');
+        if (!marker) {
+          console.warn('Trilha: marker não encontrado');
+          return;
+        }
+        // Sobe na árvore DOM até achar um ancestor que tem sibling com <button>
+        // Não dependemos de data-testid (que muda entre versões do Streamlit).
+        var node = marker;
+        var maxIter = 20;  // proteção contra loop infinito
+        while (node && node !== doc.body && maxIter-- > 0) {
+          var sibling = node.nextElementSibling;
+          while (sibling) {
+            var btn = sibling.querySelector('button');
+            if (btn) {
+              btn.click();
+              return;
+            }
+            sibling = sibling.nextElementSibling;
+          }
+          node = node.parentElement;
+        }
+        console.warn('Trilha: botão não encontrado após marker');
+      } catch(err) {
+        console.warn('Trilha listener erro:', err);
+      }
+    };
+
+    parentWin.addEventListener('message', listenerFn);
+    parentWin.__trilhaListenerFn = listenerFn;
+  } catch(err) {
+    console.warn('Trilha setup falhou:', err);
+  }
+
+  // Função chamada pelo onclick da bolinha pulsante
   window.trilhaClickAtual = function() {
     try {
       window.parent.postMessage({type: 'trilha_go_atual'}, '*');
-    } catch(err) { console.warn('Trilha postMessage:', err); }
+    } catch(err) {
+      console.warn('Trilha postMessage:', err);
+    }
   };
 })();
 </script>
