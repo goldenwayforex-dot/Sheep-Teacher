@@ -4637,7 +4637,8 @@ elif st.session_state.tela == "trilha_modulo":
                         f'opacity="{op}"{dash} />'
                     )
 
-                # 2) BOLINHAS (clicáveis via <a> quando completa ou atual)
+                # 2) BOLINHAS (com sombra). Bolinha ATUAL fica clicável via postMessage
+                #    que dispara o botão Streamlit visível abaixo do SVG.
                 for p in passos:
                     cx, cy = p["x"], p["y"]
                     tipo, label = p["tipo"], p["label"]
@@ -4648,10 +4649,10 @@ elif st.session_state.tela == "trilha_modulo":
                     elif tipo == "licao":
                         if p["estado"] == "completa":
                             fill, stroke, ic, ic_color = "#10B981", "#047857", "✓", "white"
-                            clickable = True
+                            clickable = False  # refazer via expander, mais robusto
                         elif p["estado"] == "atual":
                             fill, stroke, ic, ic_color = "#F59E0B", "#B45309", "▶", "#422006"
-                            clickable = True
+                            clickable = True  # SÓ a atual é clicável
                         else:  # bloqueada → mostra o NÚMERO
                             fill, stroke, ic, ic_color = "#475569", "#1E293B", str(p["num"]), "#CBD5E1"
                             clickable = False
@@ -4677,6 +4678,12 @@ elif st.session_state.tela == "trilha_modulo":
                             f'dur="1.6s" repeatCount="indefinite"/>'
                         )
 
+                    # <g onclick=...> apenas na bolinha clicável (atual)
+                    if clickable:
+                        svg_parts.append(
+                            '<g style="cursor:pointer;" onclick="trilhaClickAtual()">'
+                        )
+
                     # Sombra (círculo de baixo)
                     svg_parts.append(
                         f'<circle cx="{cx}" cy="{cy+5}" r="{R_CIRC}" fill="rgba(0,0,0,0.35)" />'
@@ -4692,6 +4699,9 @@ elif st.session_state.tela == "trilha_modulo":
                         f'font-size="34" font-weight="800" font-family="Sora, Inter, sans-serif" '
                         f'style="pointer-events:none;user-select:none;">{ic}</text>'
                     )
+
+                    if clickable:
+                        svg_parts.append('</g>')
 
                     # Label embaixo da bolinha
                     label_color = "#F59E0B" if is_current else "#94A3B8"
@@ -4723,6 +4733,42 @@ elif st.session_state.tela == "trilha_modulo":
                     )
 
                 svg_parts.append('</svg>')
+                # Script: bolinha atual clicada → postMessage pro parent → listener clica
+                # no botão Streamlit "Começar Fase X". Assim a sessão é preservada.
+                svg_parts.append("""
+<script>
+(function() {
+  // Instala listener no parent UMA vez por página
+  try {
+    if (!window.parent.__trilhaListenerOn) {
+      window.parent.__trilhaListenerOn = true;
+      window.parent.addEventListener('message', function(e) {
+        if (!e.data || e.data.type !== 'trilha_go_atual') return;
+        // Acha o marker do botão e clica nele
+        var doc = window.parent.document;
+        var marker = doc.querySelector('.trilha-trigger-marker');
+        if (!marker) return;
+        var stCont = marker.closest('[data-testid="stElementContainer"]');
+        if (!stCont) return;
+        var next = stCont.nextElementSibling;
+        while (next && !next.querySelector('button')) next = next.nextElementSibling;
+        if (next) {
+          var btn = next.querySelector('button');
+          if (btn) btn.click();
+        }
+      });
+    }
+  } catch(err) { console.warn('Trilha listener:', err); }
+
+  // Função chamada pelo onclick das bolinhas clicáveis
+  window.trilhaClickAtual = function() {
+    try {
+      window.parent.postMessage({type: 'trilha_go_atual'}, '*');
+    } catch(err) { console.warn('Trilha postMessage:', err); }
+  };
+})();
+</script>
+""")
                 svg_parts.append('</body></html>')
 
                 # Renderiza o SVG (visual da trilha)
@@ -4746,9 +4792,12 @@ elif st.session_state.tela == "trilha_modulo":
                     st.session_state.trilha_modulo_id = modulo_id
                     st.session_state.tela = "licao"
 
-                # 1) Botão GRANDE pra próxima lição (dourado, pulsante)
+                # 1) Botão GRANDE pra próxima lição.
+                # O MARKER antes do botão permite o JS do iframe SVG achar e disparar este botão
+                # quando o aluno clica na bolinha pulsante.
                 if proximo_idx is not None:
                     prox_lic = licoes_mod[proximo_idx]
+                    st.markdown('<div class="trilha-trigger-marker"></div>', unsafe_allow_html=True)
                     if st.button(
                         f"▶  Começar Fase {proximo_idx + 1}: {prox_lic[1]}",
                         type="primary",
