@@ -4489,28 +4489,32 @@ elif st.session_state.tela == "trilha_modulo":
 
                 def _conector_svg(pos_de, pos_para, estado):
                     """SVG de curva Bezier conectando duas posições de coluna (0-4).
-                    Mantém proporção (sem preserveAspectRatio='none') pra a curva ficar fluida.
-                    estado: 'completo' (verde), 'atual' (dourado) ou 'futuro' (cinza)."""
+                    O path EXTRAPOLA o viewBox (overflow:visible) e o div tem margin negativo,
+                    pra a linha 'entrar' dentro das bolinhas adjacentes e eliminar gaps verticais."""
                     # ViewBox de 680px (largura típica do widget). Cada coluna = 136px.
                     x1 = pos_de * 136 + 68   # centro horizontal da coluna de partida
                     x2 = pos_para * 136 + 68 # centro horizontal da coluna de chegada
-                    # Altura proporcional ao "salto" pra a curva ter espaço de respirar
+                    # Altura base do SVG (área do "S" da curva)
                     diff = abs(pos_para - pos_de)
-                    h = 60 + min(diff, 4) * 15  # 60, 75, 90, 105, 120 px
+                    h = 80 + min(diff, 4) * 12  # 80, 92, 104, 116, 128
+                    # Extensão pra fora do viewBox (penetra nas bolinhas adjacentes)
+                    ext = 45
                     if estado == "completo":
                         cor = "#10B981"; op = 0.95; dash = ""
                     elif estado == "atual":
                         cor = "#FCD34D"; op = 0.9; dash = ""
                     else:
-                        cor = "#64748B"; op = 0.35; dash = "stroke-dasharray='10 10'"
-                    # S-curve Bezier: tangente vertical em ambos os endpoints
+                        cor = "#64748B"; op = 0.4; dash = "stroke-dasharray='12 10'"
+                    # Path: começa ACIMA do viewBox (-ext), passa pela curva S no meio, termina ABAIXO
                     ctrl_y = h / 2
+                    y_start = -ext
+                    y_end = h + ext
                     return (
-                        f"<div style='margin:-12px 0;padding:0;line-height:0;'>"
+                        f"<div style='margin:-{ext}px 0;padding:0;line-height:0;position:relative;z-index:0;'>"
                         f"<svg viewBox='0 0 680 {h}' "
                         f"style='width:100%;height:auto;display:block;overflow:visible;'>"
-                        f"<path d='M {x1} 0 C {x1} {ctrl_y}, {x2} {ctrl_y}, {x2} {h}' "
-                        f"stroke='{cor}' stroke-width='8' stroke-linecap='round' "
+                        f"<path d='M {x1} {y_start} C {x1} {ctrl_y}, {x2} {ctrl_y}, {x2} {y_end}' "
+                        f"stroke='{cor}' stroke-width='9' stroke-linecap='round' "
                         f"fill='none' opacity='{op}' {dash} />"
                         f"</svg></div>"
                     )
