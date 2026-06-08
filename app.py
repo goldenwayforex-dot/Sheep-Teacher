@@ -4596,7 +4596,19 @@ elif st.session_state.tela == "trilha_modulo":
                 SVG_H = PAD_TOP + (len(passos) - 1) * SPACING_Y + 90  # padding inferior
 
                 # ---- Constrói o SVG ----
+                # Função JS no topo: preserva todos os query params existentes
+                # (como ?embed=true do Streamlit) e adiciona apenas os novos.
+                # Sem isso, o link substituiria TUDO e a sessão do Streamlit se perderia.
                 svg_parts = [
+                    '<script>'
+                    'function trilhaGoLicao(lid, mid, idx) {'
+                    '  const p = new URLSearchParams(window.location.search);'
+                    '  p.set("go_licao", lid);'
+                    '  p.set("mod", mid);'
+                    '  p.set("idx", idx);'
+                    '  window.location.search = p.toString();'
+                    '}'
+                    '</script>',
                     f'<svg viewBox="0 0 {SVG_W} {SVG_H}" xmlns="http://www.w3.org/2000/svg" '
                     f'style="display:block;width:100%;max-width:720px;height:auto;margin:0 auto;">'
                 ]
@@ -4672,8 +4684,11 @@ elif st.session_state.tela == "trilha_modulo":
                         )
 
                     if clickable:
-                        href = f"?go_licao={p['lid']}&mod={mid}&idx={p['idx']}"
-                        svg_parts.append(f'<a href="{href}" target="_self" style="cursor:pointer;">')
+                        # <g onclick=...> em vez de <a href=...> pra preservar query params do Streamlit
+                        svg_parts.append(
+                            f'<g style="cursor:pointer;" '
+                            f'onclick="trilhaGoLicao({p["lid"]},{mid},{p["idx"]})">'
+                        )
 
                     # Sombra (círculo de baixo)
                     svg_parts.append(
@@ -4691,7 +4706,7 @@ elif st.session_state.tela == "trilha_modulo":
                         f'style="pointer-events:none;user-select:none;">{ic}</text>'
                     )
                     if clickable:
-                        svg_parts.append('</a>')
+                        svg_parts.append('</g>')
 
                     # Label embaixo da bolinha
                     label_color = "#F59E0B" if is_current else "#94A3B8"
