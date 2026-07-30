@@ -5679,8 +5679,8 @@ elif st.session_state.tela == "duelo_lobby":
                     st.session_state.opcoes_atuais = []
                     st.session_state.duelo_iniciado_em = time.time()
                     st.session_state.duelo_aposta = aposta
-                    st.session_state.duelo_idioma = duelo_info[14] if duelo_info and len(duelo_info) > 14 else 'en'  # idioma
-                    st.session_state.duelo_torneio_partida_id = duelo[13]  # se for partida de torneio
+                    st.session_state.duelo_idioma = duelo[14] if duelo and len(duelo) > 14 else 'en'  # idioma (índice 14)
+                    st.session_state.duelo_torneio_partida_id = duelo[13]  # torneio_partida_id (índice 13)
                     st.session_state.tela = "duelo_jogando"
                     st.rerun()
 
@@ -5756,7 +5756,7 @@ elif st.session_state.tela == "duelo_criar":
                     format_func=lambda i: dict(oponentes)[i]
                 )
                 
-                # ===== NOVO: Seletor de idioma =====
+                # Seletor de idioma
                 idioma_duelo = st.radio(
                     "📖 Idioma do duelo:",
                     options=["en", "es"],
@@ -5774,31 +5774,31 @@ elif st.session_state.tela == "duelo_criar":
                 # Aposta de XP
                 meu_xp = consultar_um("SELECT xp_total FROM alunos WHERE id = ?", (uid,))[0]
                 max_aposta_aluno = min(DUELO_APOSTA_MAX, meu_xp)
-                if max_aposta_aluno >= DUELO_APOSTA_MIN:
-                    quer_apostar = st.checkbox("💰 Apostar XP neste duelo")
-                    if quer_apostar:
-                        aposta = st.number_input(
-                            f"Quanto apostar? (você tem {meu_xp} XP, máximo {max_aposta_aluno})",
-                            min_value=DUELO_APOSTA_MIN,
-                            max_value=max_aposta_aluno,
-                            value=DUELO_APOSTA_MIN,
-                            step=10
-                        )
-                        st.caption(f"⚠️ Os {aposta} XP serão descontados de você agora. Se vencer, leva o dobro ({2*aposta}). Se perder, perdeu tudo. Empate: cada um recebe o seu de volta.")
-                    else:
-                        aposta = None
-                else:
-                    st.caption(f"💡 Você precisa de pelo menos {DUELO_APOSTA_MIN} XP pra apostar. Você tem {meu_xp} XP.")
-                    aposta = None
+                quer_apostar = st.checkbox("💰 Apostar XP neste duelo", value=False)
+                
+                aposta = None
+                if quer_apostar and max_aposta_aluno >= DUELO_APOSTA_MIN:
+                    aposta = st.number_input(
+                        f"Quanto apostar? (você tem {meu_xp} XP, máximo {max_aposta_aluno})",
+                        min_value=DUELO_APOSTA_MIN,
+                        max_value=max_aposta_aluno,
+                        value=DUELO_APOSTA_MIN,
+                        step=10
+                    )
+                    st.caption(f"⚠️ Os {aposta} XP serão descontados de você agora. Se vencer, leva o dobro ({2*aposta}). Se perder, perdeu tudo. Empate: cada um recebe o seu de volta.")
+                elif quer_apostar and max_aposta_aluno < DUELO_APOSTA_MIN:
+                    st.error(f"❌ Você precisa de pelo menos {DUELO_APOSTA_MIN} XP pra apostar. Você tem {meu_xp} XP.")
 
-                st.caption(f"⚔️ Serão {DUELO_QUESTOES} questões aleatórias. Você joga primeiro, depois o oponente. Vencedor leva {DUELO_XP_VITORIA} XP, perdedor {DUELO_XP_DERROTA}, empate {DUELO_XP_EMPATE} cada (sem aposta).")
+                st.caption(f"⚔️ Serão {DUELO_QUESTOES} questões aleatórias. Você joga primeiro, depois o oponente.")
                 iniciar = st.form_submit_button("⚔️ INICIAR DUELO", use_container_width=True)
+                
+                # PROCESSAR DENTRO DO FORM (quando form_submit_button é clicado)
                 if iniciar:
                     ids = gerar_questoes_duelo(nivel_max=nivel, n=DUELO_QUESTOES, idioma=idioma_duelo)
                     if len(ids) < DUELO_QUESTOES:
-                        st.error(f"Não há questões suficientes nesse nível. Tente nível maior.")
+                        st.error(f"❌ Não há questões suficientes nesse nível em {('Inglês' if idioma_duelo == 'en' else 'Espanhol')}. Diminua a dificuldade.")
                     else:
-                        st.session_state.duelo_id = None  # ainda não criado no DB
+                        st.session_state.duelo_id = None
                         st.session_state.duelo_modo = "desafiante"
                         st.session_state.duelo_questoes = carregar_questoes(ids)
                         st.session_state.duelo_oponente_id = oponente_id
@@ -5808,7 +5808,7 @@ elif st.session_state.tela == "duelo_criar":
                         st.session_state.opcoes_atuais = []
                         st.session_state.duelo_iniciado_em = time.time()
                         st.session_state.duelo_aposta = aposta
-                        st.session_state.duelo_idioma = idioma_duelo  # armazena idioma escolhido
+                        st.session_state.duelo_idioma = idioma_duelo
                         st.session_state.duelo_torneio_partida_id = None
                         st.session_state.tela = "duelo_jogando"
                         st.rerun()
@@ -5933,7 +5933,7 @@ elif st.session_state.tela == "duelo_resultado":
             reset_para_inicio(); st.rerun()
     else:
         (d_id, des_id, dou_id, q_ids, sc_des, sc_dou, vencedor, status, criado, atualizado,
-         xp_apostado, tempo_des, tempo_dou, torneio_partida_id) = duelo
+         xp_apostado, tempo_des, tempo_dou, torneio_partida_id, idioma_duelo) = duelo
         nome_des = consultar_um("SELECT nome FROM alunos WHERE id = ?", (des_id,))[0]
         nome_dou = consultar_um("SELECT nome FROM alunos WHERE id = ?", (dou_id,))[0]
 
