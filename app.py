@@ -300,7 +300,7 @@ DUELO_XP_EMPATE  = 15
 DUELO_MAX_PENDENTES = 5  # máx. de duelos enviados aguardando resposta
 DUELO_TEMPO_REFERENCIA_SEG = 15  # tempo "ideal" por questão (referência visual)
 DUELO_APOSTA_MIN = 10
-DUELO_APOSTA_MAX = 200
+DUELO_APOSTA_MAX = 1000  # aumentado para permitir apostas maiores
 # --- Torneio ---
 TORNEIO_XP_CAMPEAO        = 100
 TORNEIO_XP_FINALISTA      = 50
@@ -1367,15 +1367,15 @@ def obter_revisao_inteligente(uid, n=10):
     return erradas + feitas
 
 # --- DUELOS ---
-def gerar_questoes_duelo(nivel_max=2, n=DUELO_QUESTOES):
-    """Sorteia n IDs de lições com nivel <= nivel_max."""
+def gerar_questoes_duelo(nivel_max=2, n=DUELO_QUESTOES, idioma='en'):
+    """Sorteia n IDs de lições com nivel <= nivel_max e idioma específico."""
     rows = consultar("""
         SELECT l.id FROM licoes l
         JOIN modulos m ON m.id = l.modulo_id
-        WHERE m.nivel <= ?
+        WHERE m.nivel <= ? AND COALESCE(m.idioma, 'en') = ?
         ORDER BY RANDOM()
         LIMIT ?
-    """, (nivel_max, n))
+    """, (nivel_max, idioma, n))
     return [r[0] for r in rows]
 
 def carregar_questoes(ids):
@@ -5730,6 +5730,15 @@ elif st.session_state.tela == "duelo_criar":
                     options=[o[0] for o in oponentes],
                     format_func=lambda i: dict(oponentes)[i]
                 )
+                
+                # ===== NOVO: Seletor de idioma =====
+                idioma_duelo = st.radio(
+                    "📖 Idioma do duelo:",
+                    options=["en", "es"],
+                    format_func=lambda x: "🇺🇸 Inglês" if x == "en" else "🇪🇸 Espanhol",
+                    horizontal=True
+                )
+                
                 nivel = st.select_slider(
                     "Dificuldade:",
                     options=[1, 2, 3],
@@ -5759,7 +5768,7 @@ elif st.session_state.tela == "duelo_criar":
                 st.caption(f"⚔️ Serão {DUELO_QUESTOES} questões aleatórias. Você joga primeiro, depois o oponente. Vencedor leva {DUELO_XP_VITORIA} XP, perdedor {DUELO_XP_DERROTA}, empate {DUELO_XP_EMPATE} cada (sem aposta).")
                 iniciar = st.form_submit_button("⚔️ INICIAR DUELO", use_container_width=True)
                 if iniciar:
-                    ids = gerar_questoes_duelo(nivel_max=nivel, n=DUELO_QUESTOES)
+                    ids = gerar_questoes_duelo(nivel_max=nivel, n=DUELO_QUESTOES, idioma=idioma_duelo)
                     if len(ids) < DUELO_QUESTOES:
                         st.error(f"Não há questões suficientes nesse nível. Tente nível maior.")
                     else:
