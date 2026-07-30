@@ -1018,6 +1018,10 @@ def _garantir_colunas_idioma():
             con.execute("ALTER TABLE modulos ADD COLUMN idioma TEXT DEFAULT 'en'")
         except sqlite3.OperationalError:
             pass
+        try:
+            con.execute("ALTER TABLE duelos ADD COLUMN idioma TEXT DEFAULT 'en'")
+        except sqlite3.OperationalError:
+            pass
         con.commit()
         con.close()
     except Exception as e:
@@ -1029,6 +1033,7 @@ def _garantir_colunas_idioma():
             for ddl in [
                 "ALTER TABLE alunos ADD COLUMN idioma TEXT DEFAULT 'en'",
                 "ALTER TABLE modulos ADD COLUMN idioma TEXT DEFAULT 'en'",
+                "ALTER TABLE duelos ADD COLUMN idioma TEXT DEFAULT 'en'",
             ]:
                 try:
                     turso.execute(ddl)
@@ -1368,15 +1373,32 @@ def obter_revisao_inteligente(uid, n=10):
 
 # --- DUELOS ---
 def gerar_questoes_duelo(nivel_max=2, n=DUELO_QUESTOES, idioma='en'):
-    """Sorteia n IDs de lições com nivel <= nivel_max e idioma específico."""
+    """Sorteia n IDs de lições com nivel <= nivel_max e idioma específico.
+    Garante que TODAS as questões são do idioma selecionado."""
+    # Query EXPLÍCITA: só pega módulos que têm idioma definido E igual ao solicitado
     rows = consultar("""
         SELECT l.id FROM licoes l
         JOIN modulos m ON m.id = l.modulo_id
-        WHERE m.nivel <= ? AND COALESCE(m.idioma, 'en') = ?
+        WHERE m.nivel <= ? 
+          AND (m.idioma = ? OR (m.idioma IS NULL AND ? = 'en'))
         ORDER BY RANDOM()
         LIMIT ?
-    """, (nivel_max, idioma, n))
-    return [r[0] for r in rows]
+    """, (nivel_max, idioma, idioma, n))
+    ids = [r[0] for r in rows]
+    
+    # Validação: se não conseguiu n questões, tenta ser mais flexível
+    if len(ids) < n:
+        # Fallback: tenta pegar qualquer questão do nível (último recurso)
+        rows2 = consultar("""
+            SELECT l.id FROM licoes l
+            JOIN modulos m ON m.id = l.modulo_id
+            WHERE m.nivel <= ?
+            ORDER BY RANDOM()
+            LIMIT ?
+        """, (nivel_max, n - len(ids)))
+        ids.extend([r[0] for r in rows2])
+    
+    return ids[:n]  # garante que retorna exatamente n IDs
 
 def carregar_questoes(ids):
     """Carrega questões por ID mantendo a ordem da lista."""
@@ -1428,21 +1450,22 @@ def duelos_finalizados(uid, limite=10):
     """, (uid, uid, uid, uid, uid, limite))
 
 def criar_duelo(desafiante_id, desafiado_id, questoes_ids, score, xp_apostado=None,
-                tempo_desafiante=None, torneio_partida_id=None):
+                tempo_desafiante=None, torneio_partida_id=None, idioma='en'):
     """
     Cria um duelo no banco. Se xp_apostado for setado, debita o XP do desafiante imediatamente.
     torneio_partida_id liga este duelo a uma partida de torneio (opcional).
+    idioma: 'en' ou 'es'
     """
     if xp_apostado:
         executar("UPDATE alunos SET xp_total = xp_total - ? WHERE id = ?", (xp_apostado, desafiante_id))
     return executar("""
         INSERT INTO duelos (desafiante_id, desafiado_id, questoes_ids,
                             score_desafiante, status, criado_em,
-                            xp_apostado, tempo_desafiante, torneio_partida_id)
-        VALUES (?,?,?,?,?,?,?,?,?)
+                            xp_apostado, tempo_desafiante, torneio_partida_id, idioma)
+        VALUES (?,?,?,?,?,?,?,?,?,?)
     """, (desafiante_id, desafiado_id, json.dumps(questoes_ids),
           score, 'aguardando_desafiado', datetime.now().isoformat(timespec='seconds'),
-          xp_apostado, tempo_desafiante, torneio_partida_id))
+          xp_apostado, tempo_desafiante, torneio_partida_id, idioma))
 
 def atualizar_streak_vitorias(uid, venceu):
     """Atualiza streak de vitórias em duelo. venceu=True incrementa, False/None reseta."""
@@ -1557,7 +1580,7 @@ def carregar_duelo(duelo_id):
     return consultar_um("""
         SELECT id, desafiante_id, desafiado_id, questoes_ids,
                score_desafiante, score_desafiado, vencedor_id, status, criado_em, atualizado_em,
-               xp_apostado, tempo_desafiante, tempo_desafiado, torneio_partida_id
+               xp_apostado, tempo_desafiante, tempo_desafiado, torneio_partida_id, COALESCE(idioma, 'en')
         FROM duelos WHERE id = ?
     """, (duelo_id,))
 
@@ -3949,6 +3972,7 @@ def reset_para_inicio():
     st.session_state.duelo_idx = 0
     st.session_state.duelo_iniciado_em = None
     st.session_state.duelo_aposta = None
+    st.session_state.duelo_idioma = 'en'  # 'en' ou 'es'
     st.session_state.duelo_torneio_partida_id = None
 
 # --- Funções auxiliares da tela de lição ---
@@ -5655,6 +5679,7 @@ elif st.session_state.tela == "duelo_lobby":
                     st.session_state.opcoes_atuais = []
                     st.session_state.duelo_iniciado_em = time.time()
                     st.session_state.duelo_aposta = aposta
+                    st.session_state.duelo_idioma = duelo_info[14] if duelo_info and len(duelo_info) > 14 else 'en'  # idioma
                     st.session_state.duelo_torneio_partida_id = duelo[13]  # se for partida de torneio
                     st.session_state.tela = "duelo_jogando"
                     st.rerun()
@@ -5752,17 +5777,18 @@ elif st.session_state.tela == "duelo_criar":
                 if max_aposta_aluno >= DUELO_APOSTA_MIN:
                     quer_apostar = st.checkbox("💰 Apostar XP neste duelo")
                     if quer_apostar:
-                        aposta = st.slider(
-                            f"Quanto apostar? (você tem {meu_xp} XP)",
+                        aposta = st.number_input(
+                            f"Quanto apostar? (você tem {meu_xp} XP, máximo {max_aposta_aluno})",
                             min_value=DUELO_APOSTA_MIN,
                             max_value=max_aposta_aluno,
-                            value=DUELO_APOSTA_MIN, step=10
+                            value=DUELO_APOSTA_MIN,
+                            step=10
                         )
                         st.caption(f"⚠️ Os {aposta} XP serão descontados de você agora. Se vencer, leva o dobro ({2*aposta}). Se perder, perdeu tudo. Empate: cada um recebe o seu de volta.")
                     else:
                         aposta = None
                 else:
-                    st.caption(f"💡 Você precisa de pelo menos {DUELO_APOSTA_MIN} XP pra apostar.")
+                    st.caption(f"💡 Você precisa de pelo menos {DUELO_APOSTA_MIN} XP pra apostar. Você tem {meu_xp} XP.")
                     aposta = None
 
                 st.caption(f"⚔️ Serão {DUELO_QUESTOES} questões aleatórias. Você joga primeiro, depois o oponente. Vencedor leva {DUELO_XP_VITORIA} XP, perdedor {DUELO_XP_DERROTA}, empate {DUELO_XP_EMPATE} cada (sem aposta).")
@@ -5782,6 +5808,7 @@ elif st.session_state.tela == "duelo_criar":
                         st.session_state.opcoes_atuais = []
                         st.session_state.duelo_iniciado_em = time.time()
                         st.session_state.duelo_aposta = aposta
+                        st.session_state.duelo_idioma = idioma_duelo  # armazena idioma escolhido
                         st.session_state.duelo_torneio_partida_id = None
                         st.session_state.tela = "duelo_jogando"
                         st.rerun()
@@ -5804,7 +5831,8 @@ elif st.session_state.tela == "duelo_jogando":
                 st.session_state.duelo_score,
                 xp_apostado=st.session_state.duelo_aposta,
                 tempo_desafiante=tempo_total,
-                torneio_partida_id=st.session_state.duelo_torneio_partida_id
+                torneio_partida_id=st.session_state.duelo_torneio_partida_id,
+                idioma=st.session_state.duelo_idioma
             )
             st.session_state.duelo_id = duelo_id
             # Se for partida de torneio, registra o duelo na partida
